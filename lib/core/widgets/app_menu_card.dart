@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_icons.dart';
+import 'tap_scale.dart';
 
 /// Tarjeta de menú con ícono, título, descripción y chevron derecho.
 ///
@@ -56,7 +57,9 @@ class AppMenuCard extends StatelessWidget {
         : AppColors.iconBgLight.withAlpha(80);
     final chevronColor   = isDark ? AppColors.secondary400 : AppColors.secondary300;
 
-    return Opacity(
+    return TapScale(
+      enabled: !locked,
+      child: Opacity(
       opacity: locked ? 0.55 : 1.0,
       child: Material(
       color: cardBg,
@@ -120,6 +123,7 @@ class AppMenuCard extends StatelessWidget {
           ),
         ),
       ),
+    ),
     ),
     );
   }

@@ -6,6 +6,7 @@ import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_icons.dart';
 import '../../../../core/widgets/app_menu_card.dart';
+import '../../../../core/widgets/app_scroll_body.dart';
 import '../providers/auth_notifier.dart';
 import '../providers/auth_state.dart';
 
@@ -73,11 +74,9 @@ class _HomeInstructorScreenState
               isDark: isDark,
             ),
 
-            
-
             // ── Contenido scrollable ────────────────────────────────────────
             Expanded(
-              child: SingleChildScrollView(
+              child: AppScrollBody(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

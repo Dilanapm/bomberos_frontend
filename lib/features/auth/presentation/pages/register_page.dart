@@ -8,6 +8,7 @@ import '../../../../../core/error/app_exception.dart';
 import '../../../../../core/utils/app_toast.dart';
 import '../../../../../core/widgets/app_app_bar.dart';
 import '../../../../../core/widgets/app_button.dart';
+import '../../../../../core/widgets/app_scroll_body.dart';
 import '../../../../../core/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
 
@@ -19,12 +20,12 @@ class RegisterPage extends ConsumerStatefulWidget {
 }
 
 class _RegisterPageState extends ConsumerState<RegisterPage> {
-  final _nameCtrl     = TextEditingController();
+  final _nameCtrl = TextEditingController();
   final _usernameCtrl = TextEditingController();
-  final _emailCtrl    = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
-  final _confirmCtrl  = TextEditingController();
-  final _codeCtrl     = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  final _codeCtrl = TextEditingController();
 
   Map<String, String?> _errors = {};
   bool _isLoading = false;
@@ -42,34 +43,31 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
   Future<void> _submit() async {
     setState(() {
-      _errors    = {};
+      _errors = {};
       _isLoading = true;
     });
 
     try {
       final result = await ref.read(authNotifierProvider.notifier).register(
-            name:                 _nameCtrl.text.trim(),
-            username:             _usernameCtrl.text.trim(),
-            email:                _emailCtrl.text.trim(),
-            password:             _passwordCtrl.text,
+            name: _nameCtrl.text.trim(),
+            username: _usernameCtrl.text.trim(),
+            email: _emailCtrl.text.trim(),
+            password: _passwordCtrl.text,
             passwordConfirmation: _confirmCtrl.text,
-            registrationCode:     _codeCtrl.text.trim(),
+            registrationCode: _codeCtrl.text.trim(),
           );
 
       if (!mounted) return;
-      // Ir al OTP con userId y email
       context.pushReplacement(
         RouteNames.otp,
         extra: {'userId': result.userId, 'email': result.email},
       );
     } on ValidationException catch (e) {
-      final mapped = e.errors.map((k, v) => MapEntry(k, v.first));
+      final mapped = e.errors.map((key, value) => MapEntry(key, value.first));
       setState(() => _errors = mapped);
     } on AppException catch (e) {
-      if (!mounted) return;
       AppToast.showError(context, e.message);
     } catch (_) {
-      if (!mounted) return;
       AppToast.showError(context, 'Error inesperado. Intenta de nuevo.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -83,23 +81,18 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     return Scaffold(
       appBar: AppAppBar(title: 'Crear cuenta'),
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: AppScrollBody(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Completa tus datos',
-                style: text.titleSmall,
-              ),
+              Text('Completa tus datos', style: text.titleSmall),
               const SizedBox(height: 4),
               Text(
                 'Necesitas un código de registro de tu instructor.',
                 style: text.bodyMedium?.copyWith(color: AppColors.secondary400),
               ),
               const SizedBox(height: 28),
-
-              // Nombre
               AppTextField(
                 label: 'Nombre completo',
                 hintText: 'Juan Pérez',
@@ -108,8 +101,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 onChanged: (_) => setState(() => _errors.remove('name')),
               ),
               const SizedBox(height: 16),
-
-              // Username
               AppTextField(
                 label: 'Usuario',
                 hintText: 'juan_perez',
@@ -118,8 +109,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 onChanged: (_) => setState(() => _errors.remove('username')),
               ),
               const SizedBox(height: 16),
-
-              // Email
               AppTextField(
                 label: 'Correo electrónico',
                 hintText: 'ejemplo@correo.com',
@@ -129,8 +118,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 onChanged: (_) => setState(() => _errors.remove('email')),
               ),
               const SizedBox(height: 16),
-
-              // Contraseña
               AppTextField(
                 label: 'Contraseña',
                 hintText: '••••••••',
@@ -140,11 +127,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 onChanged: (_) => setState(() => _errors.remove('password')),
               ),
               const SizedBox(height: 16),
-
-              // Confirmar contraseña
               AppTextField(
                 label: 'Confirmar contraseña',
-                hintText: '••••••••',
                 controller: _confirmCtrl,
                 isPassword: true,
                 errorText: _errors['password_confirmation'],
@@ -152,8 +136,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     setState(() => _errors.remove('password_confirmation')),
               ),
               const SizedBox(height: 16),
-
-              // Código de registro
               AppTextField(
                 label: 'Código de registro',
                 hintText: 'Ingresa el código de tu instructor',
@@ -162,17 +144,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 onChanged: (_) =>
                     setState(() => _errors.remove('registration_code')),
               ),
-
               const SizedBox(height: 32),
-
               AppButton(
                 label: 'Crear cuenta',
                 isLoading: _isLoading,
                 onPressed: _isLoading ? null : _submit,
               ),
-
               const SizedBox(height: 20),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -188,11 +166,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
             ],
           ),
         ),
       ),
     );
   }
+
 }

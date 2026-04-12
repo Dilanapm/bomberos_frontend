@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
+import 'tap_scale.dart';
 
 enum AppButtonVariant { primary, secondary, danger }
 
@@ -44,7 +45,9 @@ class AppButton extends StatelessWidget {
       _ => BorderSide.none,
     };
 
-    return SizedBox(
+    return TapScale(
+      enabled: !disabled,
+      child: SizedBox(
       width: double.infinity,
       height: 48,
       child: ElevatedButton(
@@ -87,6 +90,7 @@ class AppButton extends StatelessWidget {
                   ),
                 ],
               ),
+        ),
       ),
     );
   }

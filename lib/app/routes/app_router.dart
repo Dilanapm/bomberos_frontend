@@ -23,6 +23,9 @@ import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/student_stats/presentation/screens/student_stats_screen.dart';
 import '../../features/aprendiz_stats/presentation/screens/aprendiz_stats_screen.dart';
 import '../../features/aprendiz_stats/presentation/screens/eval_detail_screen.dart';
+import '../../features/instructor/presentation/screens/instructor_evaluations_screen.dart';
+import '../../features/instructor/presentation/screens/instructor_eval_detail_screen.dart';
+import '../../features/profile/presentation/screens/security_screen.dart';
 import '../../features/welcome/presentation/screens/welcome_screen.dart';
 import 'route_names.dart';
 
@@ -120,6 +123,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             },
           ),
           GoRoute(
+            path: RouteNames.instructorEvaluations,
+            builder: (ctx, st) => const InstructorEvaluationsScreen(),
+          ),
+          GoRoute(
+            path: RouteNames.instructorEvalDetail,
+            builder: (ctx, st) {
+              final extra  = st.extra as Map<String, dynamic>?;
+              final evalId = extra?['evalId'] as int? ?? 0;
+              return InstructorEvalDetailScreen(evalId: evalId);
+            },
+          ),
+          GoRoute(
             path: RouteNames.trainingInstructions,
             builder: (ctx, st) => const TrainingInstructionsScreen(),
           ),
@@ -134,6 +149,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.registrationCode,
         builder: (ctx, st) => const RegistrationCodePage(),
+      ),
+      GoRoute(
+        path: RouteNames.security,
+        builder: (ctx, st) => const SecurityScreen(),
       ),
       GoRoute(
         path: RouteNames.aiModule,
@@ -207,13 +226,24 @@ class _PlaceholderScreen extends StatelessWidget {
   }
 }
 
-// ── Observer: refresca permisos silenciosamente al volver a una pantalla ──────
+// ── Observer: refresca permisos solo al salir de cámara/EPP ──────────────────
+// Solo dispara refreshMe() cuando se hace pop desde una pantalla que puede
+// cambiar permisos del dispositivo, evitando llamadas a /auth/me en cada Back.
 class _PermissionRefreshObserver extends NavigatorObserver {
   _PermissionRefreshObserver({required this.onPop});
   final VoidCallback onPop;
 
+  static const _sensitiveRoutes = {
+    RouteNames.cameraPermission,
+    RouteNames.cameraSession,
+    RouteNames.eppTraining,
+  };
+
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    onPop();
+    final name = route.settings.name ?? '';
+    if (_sensitiveRoutes.any((r) => name.startsWith(r))) {
+      onPop();
+    }
   }
 }

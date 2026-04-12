@@ -26,16 +26,25 @@ class ProfileState {
 class ProfileNotifier extends Notifier<ProfileState> {
   @override
   ProfileState build() {
-    final authValue = ref.watch(authNotifierProvider);
-    final user = authValue.when(
-      data: (auth) => auth is AuthAuthenticated ? auth.user : null,
-      loading: () => null,
-      error: (e, st) => null,
-    );
-    if (user != null) {
-      return ProfileState(user: user);
+    // ref.read: obtiene el usuario inicial sin suscribirse al stream completo.
+    final authValue = ref.read(authNotifierProvider);
+    final user = authValue.asData?.value is AuthAuthenticated
+        ? (authValue.asData!.value as AuthAuthenticated).user
+        : null;
+    if (user == null) {
+      throw StateError('ProfileNotifier requiere usuario autenticado.');
     }
-    throw StateError('ProfileNotifier requiere usuario autenticado.');
+
+    // ref.listen: actualiza solo user.name/avatar cuando auth cambia
+    // (ej. después de editar el perfil), sin reconstruir todo el notifier.
+    ref.listen<AsyncValue<AuthState>>(authNotifierProvider, (_, next) {
+      final updated = next.asData?.value;
+      if (updated is AuthAuthenticated) {
+        state = state.copyWith(user: updated.user);
+      }
+    });
+
+    return ProfileState(user: user);
   }
 
   Future<void> updateProfile({String? name, String? username}) async {

@@ -8,6 +8,7 @@ import '../../../../../core/utils/app_toast.dart';
 import '../../../../../core/widgets/app_app_bar.dart';
 import '../../../../../core/widgets/app_button.dart';
 import '../../../../../core/widgets/app_confirm_dialog.dart';
+import '../../../../../core/widgets/app_scroll_body.dart';
 import '../../../../../core/widgets/app_text_field.dart';
 import '../../../auth/presentation/providers/auth_notifier.dart';
 import '../providers/profile_notifier.dart';
@@ -145,7 +146,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: AppScrollBody(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

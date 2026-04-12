@@ -31,4 +31,12 @@ class ApiEndpoints {
   static const String statsMyGroup     = '/instructor/stats/my-group';
   static const String statsRanking     = '/instructor/stats/ranking';
   static const String statsNeedHelp    = '/instructor/stats/need-help';
-  static const String statsStepAnalysis = '/instructor/stats/step-analysis';}
+  static const String statsStepAnalysis = '/instructor/stats/step-analysis';
+
+  // ── Evaluaciones del instructor ──────────────────────────────────────────
+  static const String instructorEvaluations = '/instructor/evaluations';
+  static String instructorEvalDetail(int id) => '/instructor/evaluations/$id';
+  static String instructorEvalComments(int id) => '/instructor/evaluations/$id/comments';
+  static String instructorDeleteComment(int evalId, int commentId) =>
+      '/instructor/evaluations/$evalId/comments/$commentId';
+}

@@ -6,6 +6,19 @@ import '../../../../core/widgets/app_app_bar.dart';
 import '../../domain/entities/evaluation_detail.dart';
 import '../providers/eval_detail_notifier.dart';
 
+/// Colores según porcentaje de desempeño  
+Color _scoreColor(double pct) {
+  if (pct >= 75) return AppColors.success500; // Verde
+  if (pct >= 50) return AppColors.accent400;  // Amarillo
+  return AppColors.primary5;                  // Rojo
+}
+
+String _scoreLabel(double pct) {
+  if (pct >= 75) return 'Correcto';
+  if (pct >= 50) return 'Irregular';
+  return 'No realizado';
+}
+
 class EvalDetailScreen extends ConsumerWidget {
   const EvalDetailScreen({super.key, required this.evalId});
   final int evalId;
@@ -75,34 +88,81 @@ class _DetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Contar pasos clave (correctos + irregulares)
+    final keySteps = detail.steps
+        .where((s) => s.scorePercent >= 50) // >= 50% son clave
+        .toList();
+    final keyStepCount = keySteps.length;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _OverviewCard(detail: detail, isDark: isDark),
-        if (detail.recommendations != null &&
-            detail.recommendations!.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _RecommendationCard(text: detail.recommendations!, isDark: isDark),
-        ],
+        const SizedBox(height: 20),
+
+        // Sección de puntos clave
         if (detail.steps.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          _SectionHeader(text: 'Pasos', isDark: isDark),
-          const SizedBox(height: 8),
+          _SectionHeader(
+            text: '$keyStepCount PUNTOS CLAVE',
+            isDark: isDark,
+          ),
+          const SizedBox(height: 12),
           ...detail.steps.map((s) => _StepCard(step: s, isDark: isDark)),
+          const SizedBox(height: 20),
         ],
-        if (detail.errors.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          _SectionHeader(text: 'Errores detectados', isDark: isDark),
-          const SizedBox(height: 8),
-          ...detail.errors.map((e) => _ErrorCard(err: e, isDark: isDark)),
-        ],
+
+        // Comentarios del instructor
         if (detail.comments.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          _SectionHeader(text: 'Comentarios del instructor', isDark: isDark),
-          const SizedBox(height: 8),
+          _SectionHeader(text: 'COMENTARIO DEL INSTRUCTOR', isDark: isDark),
+          const SizedBox(height: 12),
           ...detail.comments
               .map((c) => _CommentCard(comment: c, isDark: isDark)),
+          const SizedBox(height: 20),
         ],
+
+        // Recomendaciones
+        if (detail.recommendations != null &&
+            detail.recommendations!.isNotEmpty) ...[
+          _RecommendationCard(text: detail.recommendations!, isDark: isDark),
+          const SizedBox(height: 20),
+        ],
+
+        // Errores
+        if (detail.errors.isNotEmpty) ...[
+          _SectionHeader(text: 'ERRORES DETECTADOS', isDark: isDark),
+          const SizedBox(height: 12),
+          ...detail.errors.map((e) => _ErrorCard(err: e, isDark: isDark)),
+          const SizedBox(height: 20),
+        ],
+
+        // Botones de acción
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  // Repetir entrenamiento
+                  Navigator.of(context).pop();
+                },
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Repetir'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () {
+                  // Guardar reporte (aquí podrías llamar a PDF)
+                },
+                icon: const Icon(Icons.save_alt_rounded),
+                label: const Text('Guardar Reporte'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary5,
+                ),
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 24),
       ],
     );
@@ -114,109 +174,174 @@ class _OverviewCard extends StatelessWidget {
   final EvaluationDetail detail;
   final bool isDark;
 
-  Color _statusColor(String s) {
-    switch (s) {
-      case 'aprobado':  return AppColors.success500;
-      case 'reprobado': return AppColors.primary5;
-      default:          return AppColors.accent400;
-    }
+  @override
+  Widget build(BuildContext context) {
+    final col = _scoreColor(detail.generalScore);
+    final label = _scoreLabel(detail.generalScore);
+    
+    // Formatear duración: convertir segundos a mm:ss
+    final mins = (detail.durationSeconds / 60).floor();
+    final secs = (detail.durationSeconds % 60).floor();
+    final durationStr = '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+
+    return Column(
+      children: [
+        // Badge de estado
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: col.withAlpha(isDark ? 40 : 20),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: col, width: 2),
+            ),
+            child: Text(
+              detail.status.toUpperCase(),
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: col,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Circular gauge con porcentaje
+        Center(
+          child: SizedBox(
+            height: 220,
+            width: 220,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Circulo de fondo
+                CustomPaint(
+                  painter: _CircularProgressPainter(
+                    progress: (detail.generalScore / 100).clamp(0.0, 1.0),
+                    color: col,
+                    backgroundColor:
+                        isDark ? AppColors.secondary600 : AppColors.secondary100,
+                    strokeWidth: 12,
+                  ),
+                  size: const Size(220, 220),
+                ),
+                // Porcentaje en el centro
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '${detail.generalScore.toStringAsFixed(0)}%',
+                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: col,
+                            fontSize: 56,
+                          ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Etiqueta de evaluación
+        Center(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isDark
+                      ? AppColors.secondary200
+                      : AppColors.secondary700,
+                ),
+          ),
+        ),
+        const SizedBox(height: 4),
+
+        // Duración
+        Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Duración',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isDark
+                          ? AppColors.secondary400
+                          : AppColors.secondary500,
+                    ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.schedule_rounded,
+                size: 16,
+                color: isDark
+                    ? AppColors.secondary400
+                    : AppColors.secondary500,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                durationStr,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Custom painter para dibujar el progeso circular (gauge/donut)
+class _CircularProgressPainter extends CustomPainter {
+  _CircularProgressPainter({
+    required this.progress,
+    required this.color,
+    required this.backgroundColor,
+    required this.strokeWidth,
+  });
+
+  final double progress;
+  final Color color;
+  final Color backgroundColor;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width / 2) - (strokeWidth / 2);
+
+    // Círculo de fondo
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = backgroundColor
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke,
+    );
+
+    // Arco de progreso (comienza desde arriba, va en sentido horario)
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -90 * 3.14159 / 180, // Comenzar desde arriba (-90°)
+      progress * 2 * 3.14159, // Ángulo basado en progreso (0 a 360°)
+      false,
+      Paint()
+        ..color = color
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke,
+    );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final cardBg   = isDark ? AppColors.cardDark : AppColors.white;
-    final col      = _statusColor(detail.status);
-
-    return Card(
-      color: cardBg,
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: col.withAlpha(80)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // Score + status
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${detail.generalScore.toStringAsFixed(1)}%',
-                        style:
-                            Theme.of(context).textTheme.displaySmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: col,
-                                ),
-                      ),
-                      Text(
-                        'Puntaje general',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: isDark
-                                  ? AppColors.secondary400
-                                  : AppColors.secondary500,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: col.withAlpha(isDark ? 40 : 20),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: col),
-                  ),
-                  child: Text(
-                    detail.status.toUpperCase(),
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: col,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Divider(height: 1),
-            const SizedBox(height: 16),
-            // Metadata row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _MetaItem(
-                  icon: Icons.timer_outlined,
-                  label: 'Duración',
-                  value: '${detail.durationSeconds.toStringAsFixed(1)}s',
-                  isDark: isDark,
-                ),
-                _MetaItem(
-                  icon: Icons.radar_rounded,
-                  label: 'Detección',
-                  value:
-                      '${detail.detectionRate.toStringAsFixed(1)}%',
-                  isDark: isDark,
-                ),
-                _MetaItem(
-                  icon: detail.correctOrder
-                      ? Icons.sort_rounded
-                      : Icons.warning_amber_rounded,
-                  label: 'Orden',
-                  value: detail.correctOrder ? 'Correcto' : 'Incorrecto',
-                  isDark: isDark,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
   }
 }
 
@@ -261,102 +386,81 @@ class _StepCard extends StatelessWidget {
   final EvalStep step;
   final bool isDark;
 
-  Color _statusColor(String s) {
-    switch (s) {
-      case 'correcto':       return AppColors.success500;
-      case 'no_detectado':   return AppColors.secondary400;
-      default:               return AppColors.primary5;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final cardBg  = isDark ? AppColors.cardDark : AppColors.white;
-    final col     = _statusColor(step.status);
-    final pct     = (step.scorePercent / 100).clamp(0.0, 1.0);
+    final pct = step.scorePercent;
+    final col = _scoreColor(pct);
+    final icon = pct >= 75
+        ? Icons.check_circle_rounded
+        : pct >= 50
+            ? Icons.warning_rounded
+            : Icons.cancel_rounded;
+
+    // Formatear duración
+    final mins = (step.duration / 60).floor();
+    final secs = (step.duration % 60).floor();
+    final durationStr =
+        '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
 
     return Card(
-      color: cardBg,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 1,
+      color: isDark ? AppColors.cardDark : AppColors.white,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: col.withAlpha(60)),
+      ),
+      elevation: 0,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Encabezado: icono + nombre + duración
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Step number
-                Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: col.withAlpha(isDark ? 50 : 28),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: col),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${step.stepNumber}',
-                      style:
-                          Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: col,
-                                fontWeight: FontWeight.bold,
+                Icon(icon, color: col, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        step.stepName,
+                        style:
+                            Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                      ),
+                      const SizedBox(height: 2),
+                      if (step.feedback != null && step.feedback!.isNotEmpty)
+                        Text(
+                          step.feedback!,
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(
+                                color: isDark
+                                    ? AppColors.secondary400
+                                    : AppColors.secondary500,
+                                fontStyle: FontStyle.italic,
                               ),
-                    ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    step.stepName,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ),
                 Text(
-                  '${step.scorePercent.toStringAsFixed(1)}%',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: col,
+                  durationStr,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: isDark
+                            ? AppColors.secondary400
+                            : AppColors.secondary500,
                       ),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: pct,
-                minHeight: 6,
-                backgroundColor:
-                    isDark ? AppColors.secondary600 : AppColors.secondary100,
-                valueColor: AlwaysStoppedAnimation<Color>(col),
-              ),
-            ),
-            if (step.feedback != null && step.feedback!.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                step.feedback!,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: isDark
-                          ? AppColors.secondary400
-                          : AppColors.secondary500,
-                      fontStyle: FontStyle.italic,
-                    ),
-              ),
-            ],
-            const SizedBox(height: 4),
-            Text(
-              '${step.duration.toStringAsFixed(1)}s  ·  '
-              '${step.detected ? "Detectado" : "No detectado"}',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isDark
-                        ? AppColors.secondary500
-                        : AppColors.secondary400,
-                  ),
             ),
           ],
         ),
@@ -448,65 +552,83 @@ class _CommentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cardBg = isDark ? AppColors.cardDark : AppColors.white;
-    final date   = '${comment.createdAt.day.toString().padLeft(2, '0')}/'
-                   '${comment.createdAt.month.toString().padLeft(2, '0')}/'
-                   '${comment.createdAt.year}';
+    final cardBg = isDark ? AppColors.cardDark : AppColors.secondary50;
 
-    return Card(
-      color: cardBg,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor:
-                      AppColors.info500.withAlpha(isDark ? 40 : 20),
-                  child: const Icon(Icons.person_rounded,
-                      size: 16, color: AppColors.info500),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  comment.instructorName,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const Spacer(),
-                Text(
-                  date,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: isDark
-                            ? AppColors.secondary500
-                            : AppColors.secondary400,
-                      ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              comment.comment,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: isDark
-                        ? AppColors.secondary200
-                        : AppColors.secondary700,
-                  ),
-            ),
-          ],
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? AppColors.secondary600 : AppColors.secondary200,
         ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Comillas
+          Text(
+            '"',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.secondary400.withAlpha(100),
+                  height: 0.8,
+                ),
+          ),
+          const SizedBox(height: 4),
+
+          // Comentario
+          Text(
+            comment.comment,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: isDark
+                      ? AppColors.secondary200
+                      : AppColors.secondary700,
+                  fontStyle: FontStyle.italic,
+                ),
+          ),
+          const SizedBox(height: 12),
+
+          // Instructor info
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: AppColors.primary5.withAlpha(40),
+                child: const Icon(
+                  Icons.person_rounded,
+                  size: 20,
+                  color: AppColors.primary5,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      comment.instructorName,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    Text(
+                      'INSTRUCTOR JEFE',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: AppColors.primary5,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.text, required this.isDark});
@@ -519,47 +641,9 @@ class _SectionHeader extends StatelessWidget {
       text,
       style: Theme.of(context).textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.bold,
-            color: isDark ? AppColors.secondary300 : AppColors.secondary600,
-            letterSpacing: 0.3,
+            color: AppColors.primary5,
+            letterSpacing: 0.5,
           ),
-    );
-  }
-}
-
-class _MetaItem extends StatelessWidget {
-  const _MetaItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.isDark,
-  });
-  final IconData icon;
-  final String label;
-  final String value;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon,
-            size: 20,
-            color: isDark ? AppColors.secondary300 : AppColors.secondary500),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color:
-                    isDark ? AppColors.secondary400 : AppColors.secondary500,
-              ),
-        ),
-      ],
     );
   }
 }

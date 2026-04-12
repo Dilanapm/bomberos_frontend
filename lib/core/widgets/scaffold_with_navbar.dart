@@ -16,9 +16,13 @@ class ScaffoldWithNavbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authNotifierProvider).asData?.value;
-    final user = authState is AuthAuthenticated ? authState.user : null;
-    final isInstructor = user?.role == 'instructor';
+    // select: solo reconstruye cuando el rol cambia, no en cada refreshMe()
+    final isInstructor = ref.watch(
+      authNotifierProvider.select((async) {
+        final auth = async.asData?.value;
+        return auth is AuthAuthenticated && auth.user.isInstructor;
+      }),
+    );
 
     return Scaffold(
       body: child,

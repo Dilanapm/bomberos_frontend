@@ -6,6 +6,7 @@ import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_icons.dart';
 import '../../../../core/widgets/app_menu_card.dart';
+import '../../../../core/widgets/app_scroll_body.dart';
 import '../providers/auth_notifier.dart';
 import '../providers/auth_state.dart';
 
@@ -75,7 +76,7 @@ class _HomeAprendizScreenState extends ConsumerState<HomeAprendizScreen> {
 
             // ── Scrollable content ─────────────────────────────────────────
             Expanded(
-              child: SingleChildScrollView(
+              child: AppScrollBody(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -270,8 +271,6 @@ class _TrainingCard extends StatelessWidget {
   final bool isDark;
   final bool locked;
 
-
-
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -328,7 +327,3 @@ class _TrainingCard extends StatelessWidget {
     );
   }
 }
-
-
-
-

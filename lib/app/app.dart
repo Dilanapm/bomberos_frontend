@@ -42,13 +42,17 @@ class _BomberosAppState extends ConsumerState<BomberosApp>
 
     final themeMode = ref.watch(themeModeProvider);
 
-    return MaterialApp.router(
-      debugShowCheckedModeBanner: false,
-      title: 'Bomberos TG',
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: themeMode,
-      routerConfig: router,
+    return GestureDetector(
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: MaterialApp.router(
+        debugShowCheckedModeBanner: false,
+        title: 'Bomberos TG',
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: themeMode,
+        routerConfig: router,
+      ),
     );
   }
 }

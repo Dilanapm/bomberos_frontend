@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/error/app_exception.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/services/biometric_service.dart';
 import '../../../../core/storage/secure_storage.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -61,7 +63,73 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       await storage.writeUserRole(result.user.role);
       await storage.writeUserId(result.user.id);
 
+      // Si el biométrico está habilitado, actualizar el token guardado
+      // para que el re-login con huella use credenciales frescas.
+      final biometricEnabled = await storage.readBiometricEnabled();
+      if (biometricEnabled) {
+        await storage.writeBiometricToken(result.token);
+      }
+
       state = AsyncData(AuthAuthenticated(result.user));
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  // ── Biometric Login ───────────────────────────────────────────────────────
+
+  /// Autentica con huella dactilar y restablece la sesión con el token guardado.
+  ///
+  /// Flujo:
+  /// 1. Lanza el prompt de huella.
+  /// 2. Si pasa: usa [biometricToken] para llamar a `/auth/me`.
+  /// 3. Si el token expiró: lo limpia y emite un error claro para que el
+  ///    usuario inicie sesión con contraseña.
+  Future<void> loginWithBiometric() async {
+    state = const AsyncLoading();
+    try {
+      final authenticated = await ref
+          .read(biometricServiceProvider)
+          .authenticate(reason: 'Ingresa a tu cuenta con huella dactilar');
+
+      if (!authenticated) {
+        // Usuario canceló el diálogo — volver al estado sin sesión sin error.
+        state = const AsyncData(AuthUnauthenticated());
+        return;
+      }
+
+      final storage    = ref.read(secureStorageProvider);
+      final savedToken = await storage.readBiometricToken();
+
+      if (savedToken == null) {
+        state = AsyncError(
+          UnauthenticatedException(
+            'Sesión expirada. Inicia sesión con tu contraseña.',
+          ),
+          StackTrace.current,
+        );
+        return;
+      }
+
+      // Restaurar el token para que el interceptor Dio lo incluya en /auth/me.
+      await storage.writeToken(savedToken);
+
+      try {
+        final user = await ref.read(getMeUseCaseProvider).call();
+        await storage.writeUserRole(user.role);
+        await storage.writeUserId(user.id);
+        state = AsyncData(AuthAuthenticated(user));
+      } catch (_) {
+        // Token expirado en el servidor — limpiar todo para forzar re-login.
+        await storage.deleteBiometricToken();
+        await storage.deleteAll();
+        state = AsyncError(
+          UnauthenticatedException(
+            'La sesión expiró. Inicia sesión con tu contraseña.',
+          ),
+          StackTrace.current,
+        );
+      }
     } catch (e, st) {
       state = AsyncError(e, st);
     }
@@ -168,14 +236,26 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   // ── Logout ────────────────────────────────────────────────────────────────
 
   Future<void> logout() async {
-    try {
-      await ref.read(logoutUseCaseProvider).call();
-    } catch (_) {
-      // Aunque falle el request, limpiamos localmente
-    } finally {
-      await ref.read(secureStorageProvider).deleteAll();
-      state = const AsyncData(AuthUnauthenticated());
+    final storage          = ref.read(secureStorageProvider);
+    final biometricEnabled = await storage.readBiometricEnabled();
+
+    if (biometricEnabled) {
+      // Con huella habilitada NO revocamos el token en el servidor.
+      // Si lo revocáramos, el token guardado en biometricToken quedaría
+      // inválido y el re-login biométrico fallaría con 401.
+      // El token expirará solo según la política del backend.
+      await storage.deleteAuthData();
+    } else {
+      // Sin huella: revocar el token en el servidor y limpiar todo.
+      try {
+        await ref.read(logoutUseCaseProvider).call();
+      } catch (_) {
+        // Si falla la llamada, limpiamos localmente de todas formas.
+      }
+      await storage.deleteAll();
     }
+
+    state = const AsyncData(AuthUnauthenticated());
   }
 }
 

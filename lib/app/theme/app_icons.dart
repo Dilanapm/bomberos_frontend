@@ -66,6 +66,10 @@ abstract final class AppIcons {
   static const IconData shield           = Icons.verified_user_outlined;
 
   // ── Búsqueda ──────────────────────────────────────────────────────────────
+  // ── Evaluaciones ─────────────────────────────────────────────────────────────
+  static const IconData evaluations         = Icons.assignment_rounded;
+  static const IconData evaluationsOutlined = Icons.assignment_outlined;
+
   static const IconData search           = Icons.search_rounded;
 
   // ── Comunicación ─────────────────────────────────────────────────────────

@@ -59,3 +59,10 @@ app.*.map.json
 
 # que no se suba al repositorio el archivo claude.md
 CLAUDE.md
+
+# Notas locales (no subir al remoto)
+comments_instru.md
+errors.md
+
+# Config local de herramientas (no subir al remoto)
+.claude/

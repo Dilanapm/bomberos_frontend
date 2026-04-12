@@ -6,6 +6,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_icons.dart';
 import '../../../../core/widgets/app_app_bar.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_scroll_body.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Modelo de ítem de instrucción
@@ -85,7 +86,7 @@ class _TrainingInstructionsScreenState
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: SingleChildScrollView(
+            child: AppScrollBody(
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

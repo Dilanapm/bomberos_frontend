@@ -6,9 +6,12 @@ import '../../../../../app/routes/route_names.dart';
 import '../../../../../app/theme/app_colors.dart';
 import '../../../../../app/theme/app_icons.dart';
 import '../../../../../core/error/app_exception.dart';
+import '../../../../../core/storage/secure_storage.dart';
 import '../../../../../core/utils/app_toast.dart';
 import '../../../../../core/widgets/app_button.dart';
+import '../../../../../core/widgets/app_scroll_body.dart';
 import '../../../../../core/widgets/app_text_field.dart';
+import '../../../../../core/widgets/tap_scale.dart';
 import '../providers/auth_notifier.dart';
 import '../providers/auth_state.dart';
 
@@ -26,6 +29,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   String? _emailError;
   String? _passwordError;
+  bool    _biometricAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricAvailability();
+  }
+
+  /// Muestra el botón de huella solo si el usuario activó la opción
+  /// Y tiene un token biométrico guardado (= hay sesión previa preservada).
+  Future<void> _checkBiometricAvailability() async {
+    final storage = ref.read(secureStorageProvider);
+    final enabled = await storage.readBiometricEnabled();
+    if (!enabled) {
+      if (mounted) setState(() => _biometricAvailable = false);
+      return;
+    }
+    final token = await storage.readBiometricToken();
+    if (mounted) setState(() => _biometricAvailable = token != null);
+  }
 
   @override
   void dispose() {
@@ -87,6 +110,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           } else {
             AppToast.showError(context, 'Error inesperado. Intenta de nuevo.');
           }
+          // Re-verificar: si el biometric token fue borrado (sesión expirada)
+          // el botón de huella debe desaparecer automáticamente.
+          _checkBiometricAvailability();
         },
       );
     });
@@ -118,7 +144,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
           // ── Contenido principal ──────────────────────────────────────────
           SafeArea(
-            child: SingleChildScrollView(
+            child: AppScrollBody(
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Form(
                 key: _formKey,
@@ -240,6 +266,45 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           : () => context.push(RouteNames.register),
                     ),
 
+                    // ── Botón de huella (visible solo si está habilitado) ───
+                    if (_biometricAvailable) ...[
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Divider(
+                              color: isDark
+                                  ? AppColors.secondary700
+                                  : AppColors.secondary200,
+                            ),
+                          ),
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'o',
+                              style: textTheme.bodySmall
+                                  ?.copyWith(color: subtitleColor),
+                            ),
+                          ),
+                          Expanded(
+                            child: Divider(
+                              color: isDark
+                                  ? AppColors.secondary700
+                                  : AppColors.secondary200,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      _BiometricButton(
+                        isLoading: isLoading,
+                        onTap: () => ref
+                            .read(authNotifierProvider.notifier)
+                            .loginWithBiometric(),
+                      ),
+                    ],
+
                     const SizedBox(height: 32),
 
                     // ── Footer versión ─────────────────────────────────────
@@ -262,3 +327,67 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BiometricButton extends StatelessWidget {
+  const _BiometricButton({
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return TapScale(
+      enabled: !isLoading,
+      child: GestureDetector(
+      onTap: isLoading ? null : onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Opacity(
+        opacity: isLoading ? 0.5 : 1.0,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary5, width: 1.5),
+              ),
+              child: isLoading
+                  ? const Center(
+                      child: SizedBox(
+                        width: 26,
+                        height: 26,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primary5,
+                        ),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.fingerprint_rounded,
+                      color: AppColors.primary5,
+                      size: 34,
+                    ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Ingresar con huella',
+              style: textTheme.labelMedium?.copyWith(
+                color: AppColors.primary5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+    );
+  }
+}

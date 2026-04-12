@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_icons.dart';
 import 'app_icon_badge.dart';
+import 'tap_scale.dart';
 
 /// Fila de configuración con un [Switch.adaptive] a la derecha.
 ///
@@ -104,10 +105,11 @@ class AppChevronTile extends StatelessWidget {
     final subtitleColor = isDark ? AppColors.secondary400 : AppColors.secondary500;
     final chevronColor = isDark ? AppColors.secondary400 : AppColors.secondary300;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Padding(
+    return TapScale(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
@@ -141,6 +143,7 @@ class AppChevronTile extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

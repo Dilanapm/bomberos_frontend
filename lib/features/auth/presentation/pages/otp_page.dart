@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../app/theme/app_colors.dart';
+import '../../../../../app/theme/app_icons.dart';
 import '../../../../../core/error/app_exception.dart';
 import '../../../../../core/utils/app_toast.dart';
 import '../../../../../core/widgets/app_app_bar.dart';
 import '../../../../../core/widgets/app_button.dart';
+import '../../../../../core/widgets/app_scroll_body.dart';
 import '../providers/auth_notifier.dart';
 import '../providers/auth_state.dart';
 
@@ -31,10 +33,12 @@ class _OtpPageState extends ConsumerState<OtpPage> {
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
-  bool _isVerifying  = false;
-  bool _isResending  = false;
-  int  _resendCooldown = 0;
+  bool _isVerifying = false;
+  bool _isResending = false;
+  int _resendCooldown = 0;
   Timer? _timer;
+
+  String get _otpCode => _controllers.map((c) => c.text).join();
 
   @override
   void initState() {
@@ -42,31 +46,34 @@ class _OtpPageState extends ConsumerState<OtpPage> {
     _startCooldown();
   }
 
+  @override
+  void dispose() {
+    _timer?.cancel();
+    for (final controller in _controllers) {
+      controller.dispose();
+    }
+    for (final focusNode in _focusNodes) {
+      focusNode.dispose();
+    }
+    super.dispose();
+  }
+
   void _startCooldown() {
     setState(() => _resendCooldown = 60);
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
-        t.cancel();
+        timer.cancel();
         return;
       }
       setState(() {
         _resendCooldown--;
-        if (_resendCooldown <= 0) t.cancel();
+        if (_resendCooldown <= 0) {
+          timer.cancel();
+        }
       });
     });
   }
-
-  @override
-  void dispose() {
-    for (final c in _controllers) { c.dispose(); }
-    for (final f in _focusNodes) { f.dispose(); }
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  String get _otpCode =>
-      _controllers.map((c) => c.text).join();
 
   Future<void> _verify() async {
     final code = _otpCode;
@@ -81,7 +88,7 @@ class _OtpPageState extends ConsumerState<OtpPage> {
           .read(authNotifierProvider.notifier)
           .verifyOtp(userId: widget.userId, code: code);
     } catch (_) {
-      // Los errores se manejan en el listener
+      // Los errores se manejan en el listener.
     } finally {
       if (mounted) setState(() => _isVerifying = false);
     }
@@ -90,15 +97,13 @@ class _OtpPageState extends ConsumerState<OtpPage> {
   Future<void> _resend() async {
     setState(() => _isResending = true);
     try {
-      await ref
-          .read(authNotifierProvider.notifier)
-          .resendOtp(userId: widget.userId);
+      await ref.read(authNotifierProvider.notifier).resendOtp(
+            userId: widget.userId,
+          );
       if (!mounted) return;
-      AppToast.showSuccess(
-          context, 'Código reenviado a ${widget.email}.');
+      AppToast.showSuccess(context, 'Código reenviado a ${widget.email}.');
       _startCooldown();
     } on AppException catch (e) {
-      if (!mounted) return;
       AppToast.showError(context, e.message);
     } finally {
       if (mounted) setState(() => _isResending = false);
@@ -109,7 +114,6 @@ class _OtpPageState extends ConsumerState<OtpPage> {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
 
-    // Escuchar errores del notifier
     ref.listen<AsyncValue<AuthState>>(authNotifierProvider, (_, next) {
       next.whenOrNull(
         error: (e, _) {
@@ -123,7 +127,7 @@ class _OtpPageState extends ConsumerState<OtpPage> {
     return Scaffold(
       appBar: AppAppBar(title: 'Verificar correo'),
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: AppScrollBody(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -132,41 +136,38 @@ class _OtpPageState extends ConsumerState<OtpPage> {
               const SizedBox(height: 8),
               Text(
                 'Ingresa el código de 6 dígitos que enviamos a\n${widget.email}',
-                style: text.bodyMedium
-                    ?.copyWith(color: AppColors.secondary400, height: 1.5),
+                style: text.bodyMedium?.copyWith(
+                  color: AppColors.secondary400,
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 40),
-
-              // OTP input boxes
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(6, (i) => _buildBox(i)),
+                children: List.generate(6, _buildBox),
               ),
-
-              const SizedBox(height: 40),
-
+              const SizedBox(height: 24),
               AppButton(
                 label: 'Verificar',
                 isLoading: _isVerifying,
                 onPressed: _isVerifying ? null : _verify,
               ),
-
               const SizedBox(height: 24),
-
-              // Reenviar código
               Center(
                 child: _resendCooldown > 0
                     ? Text(
                         'Reenviar código en ${_resendCooldown}s',
-                        style: text.bodyMedium
-                            ?.copyWith(color: AppColors.secondary400),
+                        style: text.bodyMedium?.copyWith(
+                          color: AppColors.secondary400,
+                        ),
                       )
                     : TextButton(
                         onPressed: _isResending ? null : _resend,
                         child: Text(
                           _isResending ? 'Enviando...' : 'Reenviar código',
-                          style: text.labelMedium
-                              ?.copyWith(color: AppColors.primary5),
+                          style: text.labelMedium?.copyWith(
+                            color: AppColors.primary5,
+                          ),
                         ),
                       ),
               ),
@@ -207,17 +208,16 @@ class _OtpPageState extends ConsumerState<OtpPage> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                const BorderSide(color: AppColors.primary5, width: 1.5),
+            borderSide: const BorderSide(color: AppColors.primary5, width: 1.5),
           ),
         ),
-        onChanged: (val) {
-          if (val.isNotEmpty && index < 5) {
+        onChanged: (value) {
+          if (value.isNotEmpty && index < 5) {
             _focusNodes[index + 1].requestFocus();
-          } else if (val.isEmpty && index > 0) {
+          } else if (value.isEmpty && index > 0) {
             _focusNodes[index - 1].requestFocus();
           }
-          setState(() {}); // recalcular código
+          setState(() {});
         },
       ),
     );

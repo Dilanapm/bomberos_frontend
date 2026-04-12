@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
+import 'tap_scale.dart';
 
 /// Modelo que describe un ítem del navbar.
 class AppNavItem {
@@ -127,20 +128,23 @@ class _NavItem extends StatelessWidget {
     return Expanded(
       child: InkWell(
         onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: textTheme.labelSmall?.copyWith(
-                color: color,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                fontSize: 11,
+        child: TapScale(
+          scaleDown: 0.88,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 24),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  fontSize: 11,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

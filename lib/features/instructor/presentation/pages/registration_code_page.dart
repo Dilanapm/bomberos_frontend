@@ -11,6 +11,7 @@ import '../../../../../core/utils/app_toast.dart';
 import '../../../../../core/widgets/app_app_bar.dart';
 import '../../../../../core/widgets/app_button.dart';
 import '../../../../../core/widgets/app_confirm_dialog.dart';
+import '../../../../../core/widgets/app_scroll_body.dart';
 import '../../domain/entities/registration_code.dart';
 import '../providers/instructor_notifier.dart';
 
@@ -79,7 +80,7 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
 
   @override
   Widget build(BuildContext context) {
-    final text     = Theme.of(context).textTheme;
+    final text       = Theme.of(context).textTheme;
     final stateAsync = ref.watch(instructorNotifierProvider);
 
     return Scaffold(
@@ -95,7 +96,8 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
       ),
       body: stateAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error:   (e, st) => _buildError((e is AppException) ? e.message : e.toString()),
+        error:   (e, st) => _buildError(
+            (e is AppException) ? e.message : e.toString()),
         data:    (s) => _buildContent(s, text),
       ),
     );
@@ -124,7 +126,7 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
   }
 
   Widget _buildContent(InstructorState s, TextTheme text) {
-    return SingleChildScrollView(
+    return AppScrollBody(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,7 +214,8 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
               const SizedBox(height: 16),
               Text(
                 'Sin código activo',
-                style: text.labelLarge?.copyWith(color: AppColors.secondary500),
+                style:
+                    text.labelLarge?.copyWith(color: AppColors.secondary500),
               ),
               const SizedBox(height: 8),
               Text(
@@ -224,11 +227,12 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
             ],
           ),
         ),
+
         const SizedBox(height: 24),
+
         AppButton(
           label:    'Generar código',
-          leading:  const Icon(AppIcons.add, size: 20,
-              color: AppColors.white),
+          leading:  const Icon(AppIcons.add, size: 20, color: AppColors.white),
           onPressed: _generate,
         ),
       ],
@@ -237,13 +241,13 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
 
   Widget _buildActiveCode(RegistrationCode code, TextTheme text) {
     final remaining = code.timeRemaining;
-    final minutes   = remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds   = remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
-    final hours     = remaining.inHours.toString().padLeft(2, '0');
+    final hours   = remaining.inHours.toString().padLeft(2, '0');
+    final minutes = remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
 
     return Column(
       children: [
-        // Tarjeta del código
+        // ── Tarjeta del código ────────────────────────────────────────────
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24),
@@ -257,10 +261,11 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
           ),
           child: Column(
             children: [
-              Text('CÓDIGO ACTIVO',
-                  style: text.labelSmall?.copyWith(
-                      color: AppColors.primary1,
-                      letterSpacing: 2)),
+              Text(
+                'CÓDIGO ACTIVO',
+                style: text.labelSmall?.copyWith(
+                    color: AppColors.primary1, letterSpacing: 2),
+              ),
               const SizedBox(height: 16),
               GestureDetector(
                 onTap: () => _copyCode(code.code),
@@ -290,10 +295,10 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
               ),
               const SizedBox(height: 8),
 
-              // Uses
+              // Usos
               _TimeChip(
                 label: 'Usos',
-                value: '${code.uses} / 50',
+                value: '${code.uses} / ${code.maxUses}',
               ),
             ],
           ),
@@ -301,7 +306,7 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
 
         const SizedBox(height: 24),
 
-        // Acciones
+        // ── Acciones ──────────────────────────────────────────────────────
         AppButton(
           label:    'Copiar código',
           variant:  AppButtonVariant.secondary,
@@ -312,14 +317,17 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
         AppButton(
           label:    'Revocar código',
           variant:  AppButtonVariant.danger,
-          leading:  const Icon(AppIcons.block, size: 18,
-              color: AppColors.white),
+          leading:  const Icon(AppIcons.block, size: 18, color: AppColors.white),
           onPressed: _revoke,
         ),
       ],
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Chip de tiempo / estadística
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _TimeChip extends StatelessWidget {
   const _TimeChip({required this.label, required this.value});
@@ -330,8 +338,7 @@ class _TimeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.black26,
         borderRadius: BorderRadius.circular(12),
@@ -339,11 +346,16 @@ class _TimeChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('$label: ',
-              style: text.labelSmall?.copyWith(color: AppColors.primary1)),
-          Text(value,
-              style: text.labelMedium
-                  ?.copyWith(color: AppColors.white, fontWeight: FontWeight.w700)),
+          Text(
+            '$label: ',
+            style:
+                text.labelSmall?.copyWith(color: AppColors.primary1),
+          ),
+          Text(
+            value,
+            style: text.labelMedium?.copyWith(
+                color: AppColors.white, fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );
