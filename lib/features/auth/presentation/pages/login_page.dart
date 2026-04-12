@@ -85,6 +85,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final textTheme = Theme.of(context).textTheme;
     final isDark    = Theme.of(context).brightness == Brightness.dark;
     final size      = MediaQuery.sizeOf(context);
+    final showBiometric = _biometricAvailable;
+    final logoSize = showBiometric ? 104.0 : 120.0;
+    final logoPadding = showBiometric ? 6.0 : 8.0;
 
     // ── Colores adaptativos al tema ──────────────────────────────────────────
     final bgColor        = isDark ? AppColors.dark0    : AppColors.secondary50;
@@ -144,25 +147,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
           // ── Contenido principal ──────────────────────────────────────────
           SafeArea(
+            bottom: false,
             child: AppScrollBody(
+              physics: const _NoScrollWhenFitsScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    SizedBox(height: size.height * 0.06),
+                    SizedBox(height: size.height * (showBiometric ? 0.035 : 0.06)),
 
                     // ── Logo ───────────────────────────────────────────────
                     Container(
-                      width: 120,
-                      height: 120,
+                      width: logoSize,
+                      height: logoSize,
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         color: AppColors.logoOverlay,
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(8),
+                        padding: EdgeInsets.all(logoPadding),
                         child: Image.asset(
                           'assets/images/logo.png',
                           fit: BoxFit.contain,
@@ -170,7 +175,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    SizedBox(height: showBiometric ? 12 : 16),
 
                     // ── Título ─────────────────────────────────────────────
                     Text(
@@ -194,7 +199,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                     ),
 
-                    SizedBox(height: size.height * 0.05),
+                    SizedBox(height: size.height * (showBiometric ? 0.03 : 0.05)),
 
                     // ── Campo correo ───────────────────────────────────────
                     AppTextField(
@@ -268,7 +273,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
                     // ── Botón de huella (visible solo si está habilitado) ───
                     if (_biometricAvailable) ...[
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 12),
                       Row(
                         children: [
                           Expanded(
@@ -296,7 +301,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 10),
                       _BiometricButton(
                         isLoading: isLoading,
                         onTap: () => ref
@@ -305,7 +310,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                     ],
 
-                    const SizedBox(height: 32),
+                    SizedBox(height: showBiometric ? 16 : 32),
 
                     // ── Footer versión ─────────────────────────────────────
                     Text(
@@ -315,7 +320,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+                    SizedBox(height: showBiometric ? 16 : 24),
                   ],
                 ),
               ),
@@ -345,49 +350,66 @@ class _BiometricButton extends StatelessWidget {
     return TapScale(
       enabled: !isLoading,
       child: GestureDetector(
-      onTap: isLoading ? null : onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Opacity(
-        opacity: isLoading ? 0.5 : 1.0,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primary5, width: 1.5),
-              ),
-              child: isLoading
-                  ? const Center(
-                      child: SizedBox(
-                        width: 26,
-                        height: 26,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.primary5,
+        onTap: isLoading ? null : onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Opacity(
+          opacity: isLoading ? 0.5 : 1.0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.primary5, width: 1.5),
+                ),
+                child: isLoading
+                    ? const Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary5,
+                          ),
                         ),
+                      )
+                    : const Icon(
+                        Icons.fingerprint_rounded,
+                        color: AppColors.primary5,
+                        size: 30,
                       ),
-                    )
-                  : const Icon(
-                      Icons.fingerprint_rounded,
-                      color: AppColors.primary5,
-                      size: 34,
-                    ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Ingresar con huella',
-              style: textTheme.labelMedium?.copyWith(
-                color: AppColors.primary5,
-                fontWeight: FontWeight.w600,
               ),
-            ),
-          ],
+              const SizedBox(height: 6),
+              Text(
+                'Ingresar con huella',
+                style: textTheme.labelSmall?.copyWith(
+                  color: AppColors.primary5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
     );
+  }
+}
+
+/// Evita el “arrastre”/overscroll cuando el contenido cabe en pantalla,
+/// pero permite scroll normal si realmente hay overflow.
+class _NoScrollWhenFitsScrollPhysics extends ScrollPhysics {
+  const _NoScrollWhenFitsScrollPhysics({super.parent});
+
+  @override
+  _NoScrollWhenFitsScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return _NoScrollWhenFitsScrollPhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  bool shouldAcceptUserOffset(ScrollMetrics metrics) {
+    if (metrics.maxScrollExtent <= 0) return false;
+    return super.shouldAcceptUserOffset(metrics);
   }
 }

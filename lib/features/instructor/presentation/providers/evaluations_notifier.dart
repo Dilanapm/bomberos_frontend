@@ -4,6 +4,26 @@ import '../../data/datasources/instructor_evaluations_datasource.dart';
 import '../../domain/entities/instructor_comment.dart';
 import '../../domain/entities/instructor_evaluation.dart';
 
+// ── Resumen de un aprendiz derivado de sus evaluaciones ──────────────────────
+
+class StudentSummary {
+  const StudentSummary({
+    required this.name,
+    required this.username,
+    required this.evalCount,
+    required this.lastEvalDate,
+    required this.avgScore,
+    this.avatarUrl,
+  });
+
+  final String   name;
+  final String   username;
+  final String?  avatarUrl;
+  final int      evalCount;
+  final DateTime lastEvalDate;
+  final double   avgScore;
+}
+
 // ── Estado paginado de evaluaciones ──────────────────────────────────────────
 
 class EvaluationsState {
@@ -51,6 +71,17 @@ class EvaluationsNotifier extends AsyncNotifier<EvaluationsState> {
       currentPage: 1,
       lastPage:    result.lastPage,
     );
+  }
+
+  /// Carga todas las páginas restantes de forma secuencial.
+  /// Se llama desde la pantalla de listado de aprendices para garantizar
+  /// que la lista esté completa desde el principio.
+  Future<void> loadAll() async {
+    while (true) {
+      final current = state.value;
+      if (current == null || !current.hasMore || _isFetching) break;
+      await loadMore();
+    }
   }
 
   Future<void> refresh() async {

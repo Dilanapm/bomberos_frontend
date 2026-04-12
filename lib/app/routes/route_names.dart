@@ -22,6 +22,7 @@ class RouteNames {
   static const aprendizStats            = '/aprendiz/stats';
   static const aprendizEvalDetail       = '/aprendiz/stats/evaluation';
   static const instructorEvaluations    = '/instructor/evaluations';
+  static const instructorStudentEvals   = '/instructor/evaluations/student';
   static const instructorEvalDetail     = '/instructor/evaluations/detail';
   static const security                 = '/profile/security';
 

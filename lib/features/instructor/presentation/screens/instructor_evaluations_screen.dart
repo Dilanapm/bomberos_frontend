@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../core/widgets/app_app_bar.dart';
-import '../../../../core/widgets/app_scroll_body.dart';
 import '../../domain/entities/instructor_evaluation.dart';
 import '../providers/evaluations_notifier.dart';
 
@@ -19,35 +18,51 @@ class InstructorEvaluationsScreen extends ConsumerStatefulWidget {
 
 class _InstructorEvaluationsScreenState
     extends ConsumerState<InstructorEvaluationsScreen> {
-  final _scrollController = ScrollController();
-  final _searchCtrl       = TextEditingController();
-  final _searchFocus      = FocusNode();
+  final _searchCtrl = TextEditingController();
   String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
-    _searchCtrl.addListener(() {
-      if (mounted) setState(() => _query = _searchCtrl.text.trim().toLowerCase());
+    _searchCtrl.addListener(
+      () => setState(() => _query = _searchCtrl.text.trim().toLowerCase()),
+    );
+    // Carga todas las páginas al entrar para que la lista de aprendices
+    // esté completa desde el inicio.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(evaluationsNotifierProvider.notifier).loadAll();
     });
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
     _searchCtrl.dispose();
-    _searchFocus.dispose();
     super.dispose();
   }
 
-  void _onScroll() {
-    // No paginar mientras hay búsqueda activa.
-    if (_query.isNotEmpty) return;
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      ref.read(evaluationsNotifierProvider.notifier).loadMore();
+  /// Agrupa evaluaciones por aprendiz y devuelve un resumen por alumno,
+  /// ordenado por fecha de evaluación más reciente.
+  List<StudentSummary> _buildStudents(List<InstructorEvaluation> evals) {
+    final Map<String, List<InstructorEvaluation>> byStudent = {};
+    for (final e in evals) {
+      (byStudent[e.aprendizUsername] ??= []).add(e);
     }
+    final students = byStudent.entries.map((entry) {
+      final list = entry.value
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final avg =
+          list.fold(0.0, (s, e) => s + e.generalScore) / list.length;
+      return StudentSummary(
+        name:         list.first.aprendizName,
+        username:     entry.key,
+        avatarUrl:    list.first.aprendizAvatar,
+        evalCount:    list.length,
+        lastEvalDate: list.first.createdAt,
+        avgScore:     avg,
+      );
+    }).toList()
+      ..sort((a, b) => b.lastEvalDate.compareTo(a.lastEvalDate));
+    return students;
   }
 
   @override
@@ -58,263 +73,154 @@ class _InstructorEvaluationsScreenState
     return Scaffold(
       backgroundColor: isDark ? AppColors.dark0 : AppColors.secondary50,
       appBar: AppAppBar(
-        title: 'Evaluaciones',
+        title:           'Evaluaciones',
         backgroundColor: isDark ? AppColors.dark1 : AppColors.primary5,
         foregroundColor: AppColors.white,
-        showDivider: false,
+        showDivider:     false,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: () =>
-                ref.read(evaluationsNotifierProvider.notifier).refresh(),
+            onPressed: () async {
+              await ref
+                  .read(evaluationsNotifierProvider.notifier)
+                  .refresh();
+              ref
+                  .read(evaluationsNotifierProvider.notifier)
+                  .loadAll();
+            },
           ),
         ],
       ),
       body: Column(
         children: [
-          // ── Barra de búsqueda con sugerencias dinámicas ─────────────────────
+          // ── Barra de búsqueda ───────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: RawAutocomplete<InstructorEvaluation>(
-              textEditingController: _searchCtrl,
-              focusNode:             _searchFocus,
-              optionsBuilder: (tv) {
-                final q = tv.text.trim().toLowerCase();
-                if (q.isEmpty) return const Iterable<InstructorEvaluation>.empty();
-                final evals =
-                    ref.read(evaluationsNotifierProvider).value?.evaluations ?? [];
-                return evals.where((e) =>
-                    e.aprendizName.toLowerCase().contains(q) ||
-                    e.aprendizUsername.toLowerCase().contains(q));
-              },
-              displayStringForOption: (e) => e.aprendizName,
-              // ── Campo de texto ──────────────────────────────────────────────
-              fieldViewBuilder: (ctx, ctrl, focusNode, onSubmit) => TextField(
-                controller:      ctrl,
-                focusNode:       focusNode,
-                textInputAction: TextInputAction.search,
-                onSubmitted:     (_) => onSubmit(),
-                decoration: InputDecoration(
-                  hintText:   'Buscar por nombre o usuario…',
-                  prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                  suffixIcon: _query.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 18),
-                          onPressed: () {
-                            _searchCtrl.clear();
-                            _searchFocus.unfocus();
-                          },
-                        )
-                      : null,
-                  filled:     true,
-                  fillColor:  isDark ? AppColors.dark2 : AppColors.white,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: isDark
-                          ? AppColors.secondary700
-                          : AppColors.secondary200,
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: isDark
-                          ? AppColors.secondary700
-                          : AppColors.secondary200,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.primary5),
+            child: TextField(
+              controller:      _searchCtrl,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText:   'Buscar aprendiz…',
+                prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          FocusScope.of(context).unfocus();
+                        },
+                      )
+                    : null,
+                filled:    true,
+                fillColor: isDark ? AppColors.dark2 : AppColors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: isDark
+                        ? AppColors.secondary700
+                        : AppColors.secondary200,
                   ),
                 ),
-              ),
-              // ── Panel de sugerencias ────────────────────────────────────────
-              optionsViewBuilder: (ctx, onSelected, options) {
-                final cardBg =
-                    isDark ? AppColors.dark2 : AppColors.white;
-                final divColor =
-                    isDark ? AppColors.dark3 : AppColors.secondary100;
-
-                return Align(
-                  alignment: Alignment.topLeft,
-                  child: Material(
-                    elevation:    6,
-                    color:        cardBg,
-                    borderRadius: BorderRadius.circular(12),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 300),
-                      child: ListView.separated(
-                        padding:    EdgeInsets.zero,
-                        shrinkWrap: true,
-                        itemCount:  options.length,
-                        separatorBuilder: (_, __) =>
-                            Divider(height: 1, color: divColor),
-                        itemBuilder: (ctx, i) {
-                          final eval = options.elementAt(i);
-                          final scoreColor = eval.generalScore >= 75
-                              ? AppColors.success500
-                              : eval.generalScore >= 50
-                                  ? AppColors.accent400
-                                  : AppColors.primary5;
-
-                          return InkWell(
-                            borderRadius: i == 0
-                                ? const BorderRadius.vertical(
-                                    top: Radius.circular(12))
-                                : i == options.length - 1
-                                    ? const BorderRadius.vertical(
-                                        bottom: Radius.circular(12))
-                                    : BorderRadius.zero,
-                            onTap: () {
-                              onSelected(eval); // llena el campo
-                              context.push(
-                                RouteNames.instructorEvalDetail,
-                                extra: {'evalId': eval.id},
-                              );
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius:          18,
-                                    backgroundColor:
-                                        AppColors.primary5.withAlpha(30),
-                                    backgroundImage: eval.aprendizAvatar != null
-                                        ? NetworkImage(eval.aprendizAvatar!)
-                                        : null,
-                                    child: eval.aprendizAvatar == null
-                                        ? const Icon(Icons.person_rounded,
-                                            color: AppColors.primary5, size: 20)
-                                        : null,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          eval.aprendizName,
-                                          style: Theme.of(ctx)
-                                              .textTheme
-                                              .bodyMedium
-                                              ?.copyWith(
-                                                  fontWeight: FontWeight.w600),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        Text(
-                                          '@${eval.aprendizUsername}',
-                                          style: Theme.of(ctx)
-                                              .textTheme
-                                              .labelSmall
-                                              ?.copyWith(
-                                                color: isDark
-                                                    ? AppColors.secondary400
-                                                    : AppColors.secondary500,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          scoreColor.withAlpha(isDark ? 40 : 20),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                          color: scoreColor, width: 1.2),
-                                    ),
-                                    child: Text(
-                                      '${eval.generalScore.toStringAsFixed(0)}%',
-                                      style: Theme.of(ctx)
-                                          .textTheme
-                                          .labelSmall
-                                          ?.copyWith(
-                                            color: scoreColor,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: isDark
+                        ? AppColors.secondary700
+                        : AppColors.secondary200,
                   ),
-                );
-              },
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: AppColors.primary5),
+                ),
+              ),
             ),
           ),
 
-          // ── Lista ───────────────────────────────────────────────────────────
+          // ── Lista ───────────────────────────────────────────────────────
           Expanded(
             child: evalsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
               error: (e, _) => _ErrorView(
                 message: e.toString(),
-                onRetry: () =>
-                    ref.read(evaluationsNotifierProvider.notifier).refresh(),
+                onRetry: () async {
+                  await ref
+                      .read(evaluationsNotifierProvider.notifier)
+                      .refresh();
+                  ref
+                      .read(evaluationsNotifierProvider.notifier)
+                      .loadAll();
+                },
               ),
               data: (state) {
-                // Filtrado local por nombre o username.
+                final students = _buildStudents(state.evaluations);
+
+                // Filtrado por nombre o username.
                 final filtered = _query.isEmpty
-                    ? state.evaluations
-                    : state.evaluations
-                        .where((e) =>
-                            e.aprendizName
+                    ? students
+                    : students
+                        .where((s) =>
+                            s.name
                                 .toLowerCase()
                                 .contains(_query) ||
-                            e.aprendizUsername
+                            s.username
                                 .toLowerCase()
                                 .contains(_query))
                         .toList();
 
-                if (filtered.isEmpty) {
-                  return _query.isNotEmpty
-                      ? _NoResultsView(query: _query, isDark: isDark)
-                      : _EmptyView(isDark: isDark);
+                if (students.isEmpty) {
+                  return _EmptyView(
+                    isLoading: state.loadingMore,
+                    isDark: isDark,
+                  );
                 }
 
-                // Mostrar spinner de "cargando más" solo cuando no hay búsqueda.
-                final showLoadMore =
-                    _query.isEmpty && state.hasMore;
+                if (filtered.isEmpty) {
+                  return _NoResultsView(
+                      query: _query, isDark: isDark);
+                }
 
                 return RefreshIndicator(
-                  onRefresh: () =>
-                      ref.read(evaluationsNotifierProvider.notifier).refresh(),
+                  onRefresh: () async {
+                    await ref
+                        .read(evaluationsNotifierProvider.notifier)
+                        .refresh();
+                    ref
+                        .read(evaluationsNotifierProvider.notifier)
+                        .loadAll();
+                  },
                   child: ListView.separated(
-                    controller: _scrollController,
                     padding: EdgeInsets.fromLTRB(
                       16, 8, 16,
                       16 + MediaQuery.viewPaddingOf(context).bottom,
                     ),
-                    itemCount: filtered.length + (showLoadMore ? 1 : 0),
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemCount: filtered.length +
+                        (state.loadingMore ? 1 : 0),
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: 10),
                     itemBuilder: (ctx, i) {
                       if (i >= filtered.length) {
                         return const Padding(
                           padding: EdgeInsets.symmetric(vertical: 16),
-                          child: Center(child: CircularProgressIndicator()),
+                          child: Center(
+                              child: CircularProgressIndicator()),
                         );
                       }
-                      final eval = filtered[i];
-                      return _EvalCard(
-                        eval:   eval,
-                        isDark: isDark,
-                        onTap:  () => context.push(
-                          RouteNames.instructorEvalDetail,
-                          extra: {'evalId': eval.id},
+                      final student = filtered[i];
+                      return _StudentCard(
+                        student: student,
+                        isDark:  isDark,
+                        onTap:   () => context.push(
+                          RouteNames.instructorStudentEvals,
+                          extra: {
+                            'aprendizUsername': student.username,
+                            'aprendizName':     student.name,
+                            'aprendizAvatar':   student.avatarUrl,
+                          },
                         ),
                       );
                     },
@@ -330,17 +236,19 @@ class _InstructorEvaluationsScreenState
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Tarjeta de aprendiz
+// ─────────────────────────────────────────────────────────────────────────────
 
-class _EvalCard extends StatelessWidget {
-  const _EvalCard({
-    required this.eval,
+class _StudentCard extends StatelessWidget {
+  const _StudentCard({
+    required this.student,
     required this.isDark,
     required this.onTap,
   });
 
-  final InstructorEvaluation eval;
-  final bool isDark;
-  final VoidCallback onTap;
+  final StudentSummary student;
+  final bool           isDark;
+  final VoidCallback   onTap;
 
   static const _months = [
     '', 'ene', 'feb', 'mar', 'abr', 'may', 'jun',
@@ -358,9 +266,12 @@ class _EvalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final col        = _scoreColor(eval.generalScore);
-    final dateStr    = _formatDate(eval.createdAt);
-    final cardBg     = isDark ? AppColors.cardDark : AppColors.white;
+    final textTheme = Theme.of(context).textTheme;
+    final cardBg    = isDark ? AppColors.cardDark : AppColors.white;
+    final col       = _scoreColor(student.avgScore);
+    final dateStr   = _formatDate(student.lastEvalDate);
+    final subColor  =
+        isDark ? AppColors.secondary400 : AppColors.secondary500;
 
     return Card(
       color:     cardBg,
@@ -368,7 +279,8 @@ class _EvalCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(
-          color: isDark ? AppColors.secondary700 : AppColors.secondary200,
+          color:
+              isDark ? AppColors.secondary700 : AppColors.secondary200,
         ),
       ),
       child: InkWell(
@@ -378,94 +290,111 @@ class _EvalCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              // Avatar del aprendiz
+              // ── Avatar ────────────────────────────────────────────────
               CircleAvatar(
-                radius: 24,
+                radius:          24,
                 backgroundColor: AppColors.primary5.withAlpha(30),
-                backgroundImage: eval.aprendizAvatar != null
-                    ? NetworkImage(eval.aprendizAvatar!)
+                backgroundImage: student.avatarUrl != null
+                    ? NetworkImage(student.avatarUrl!)
                     : null,
-                child: eval.aprendizAvatar == null
-                    ? const Icon(Icons.person_rounded,
-                        color: AppColors.primary5, size: 26)
+                child: student.avatarUrl == null
+                    ? Text(
+                        student.name.isNotEmpty
+                            ? student.name[0].toUpperCase()
+                            : '?',
+                        style: textTheme.titleSmall?.copyWith(
+                          color: AppColors.primary5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      )
                     : null,
               ),
+
               const SizedBox(width: 14),
 
-              // Nombre + fecha + comentarios
+              // ── Nombre + username + resumen ────────────────────────────
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      eval.aprendizName,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                      student.name,
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '@${eval.aprendizUsername}  ·  $dateStr',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: isDark
-                                ? AppColors.secondary400
-                                : AppColors.secondary500,
-                          ),
+                      '@${student.username}',
+                      style: textTheme.labelSmall
+                          ?.copyWith(color: subColor),
                     ),
-                    if (eval.commentsCount > 0) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.comment_outlined,
-                              size: 13,
-                              color: isDark
-                                  ? AppColors.secondary400
-                                  : AppColors.secondary500),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${eval.commentsCount} comentario${eval.commentsCount > 1 ? 's' : ''}',
-                            style:
-                                Theme.of(context).textTheme.labelSmall?.copyWith(
-                                      color: isDark
-                                          ? AppColors.secondary400
-                                          : AppColors.secondary500,
-                                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.assignment_outlined,
+                            size: 13, color: subColor),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            '${student.evalCount} evaluación${student.evalCount != 1 ? 'es' : ''}',
+                            style: textTheme.labelSmall
+                                ?.copyWith(color: subColor),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.schedule_rounded,
+                            size: 13, color: subColor),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            dateStr,
+                            style: textTheme.labelSmall
+                                ?.copyWith(color: subColor),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
 
-              // Score badge + chevron
+              const SizedBox(width: 10),
+
+              // ── Promedio + chevron ─────────────────────────────────────
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: col.withAlpha(isDark ? 40 : 20),
+                      color:
+                          col.withAlpha(isDark ? 40 : 20),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: col, width: 1.5),
                     ),
                     child: Text(
-                      '${eval.generalScore.toStringAsFixed(0)}%',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: col,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      '${student.avgScore.toStringAsFixed(0)}%',
+                      style: textTheme.labelMedium?.copyWith(
+                        color: col,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 6),
                   Icon(
                     Icons.chevron_right_rounded,
                     size: 20,
-                    color:
-                        isDark ? AppColors.secondary400 : AppColors.secondary500,
+                    color: subColor,
                   ),
                 ],
               ),
@@ -477,10 +406,58 @@ class _EvalCard extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Estados vacíos / error
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _EmptyView extends StatelessWidget {
+  const _EmptyView({required this.isLoading, required this.isDark});
+  final bool isLoading;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.group_outlined,
+              size: 64,
+              color: isDark
+                  ? AppColors.secondary600
+                  : AppColors.secondary300),
+          const SizedBox(height: 16),
+          Text(
+            'Sin aprendices aún',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: isDark
+                      ? AppColors.secondary400
+                      : AppColors.secondary500,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Cuando tus aprendices realicen\nevaluaciones aparecerán aquí.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: isDark
+                      ? AppColors.secondary500
+                      : AppColors.secondary400,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NoResultsView extends StatelessWidget {
   const _NoResultsView({required this.query, required this.isDark});
   final String query;
-  final bool isDark;
+  final bool   isDark;
 
   @override
   Widget build(BuildContext context) {
@@ -490,7 +467,9 @@ class _NoResultsView extends StatelessWidget {
         children: [
           Icon(Icons.search_off_rounded,
               size: 56,
-              color: isDark ? AppColors.secondary600 : AppColors.secondary300),
+              color: isDark
+                  ? AppColors.secondary600
+                  : AppColors.secondary300),
           const SizedBox(height: 16),
           Text(
             'Sin resultados para "$query"',
@@ -507,38 +486,9 @@ class _NoResultsView extends StatelessWidget {
   }
 }
 
-class _EmptyView extends StatelessWidget {
-  const _EmptyView({required this.isDark});
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.assignment_outlined,
-              size: 64,
-              color:
-                  isDark ? AppColors.secondary600 : AppColors.secondary300),
-          const SizedBox(height: 16),
-          Text(
-            'Sin evaluaciones aún',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: isDark
-                      ? AppColors.secondary400
-                      : AppColors.secondary500,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ErrorView extends StatelessWidget {
   const _ErrorView({required this.message, required this.onRetry});
-  final String message;
+  final String       message;
   final VoidCallback onRetry;
 
   @override
@@ -570,7 +520,7 @@ class _ErrorView extends StatelessWidget {
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
+              icon:  const Icon(Icons.refresh_rounded),
               label: const Text('Reintentar'),
               style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary5),

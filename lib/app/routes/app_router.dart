@@ -25,6 +25,7 @@ import '../../features/aprendiz_stats/presentation/screens/aprendiz_stats_screen
 import '../../features/aprendiz_stats/presentation/screens/eval_detail_screen.dart';
 import '../../features/instructor/presentation/screens/instructor_evaluations_screen.dart';
 import '../../features/instructor/presentation/screens/instructor_eval_detail_screen.dart';
+import '../../features/instructor/presentation/screens/instructor_student_evals_screen.dart';
 import '../../features/profile/presentation/screens/security_screen.dart';
 import '../../features/welcome/presentation/screens/welcome_screen.dart';
 import 'route_names.dart';
@@ -125,6 +126,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: RouteNames.instructorEvaluations,
             builder: (ctx, st) => const InstructorEvaluationsScreen(),
+          ),
+          GoRoute(
+            path: RouteNames.instructorStudentEvals,
+            builder: (ctx, st) {
+              final extra    = st.extra as Map<String, dynamic>?;
+              final username = extra?['aprendizUsername'] as String? ?? '';
+              final name     = extra?['aprendizName']     as String? ?? '';
+              final avatar   = extra?['aprendizAvatar']   as String?;
+              return InstructorStudentEvalsScreen(
+                aprendizUsername: username,
+                aprendizName:     name,
+                aprendizAvatar:   avatar,
+              );
+            },
           ),
           GoRoute(
             path: RouteNames.instructorEvalDetail,

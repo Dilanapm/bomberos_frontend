@@ -107,6 +107,13 @@ class _HomeInstructorScreenState
                     ),
                     const SizedBox(height: 12),
                     AppMenuCard(
+                      icon:     AppIcons.evaluations,
+                      title:    'Evaluaciones',
+                      subtitle: 'Consulta y comenta las evaluaciones de tus aprendices.',
+                      onTap:    () => context.push(RouteNames.instructorEvaluations),
+                    ),
+                    const SizedBox(height: 12),
+                    AppMenuCard(
                       icon:     AppIcons.analytics,
                       title:    'Estadísticas de Desempeño',
                       subtitle: canStats
