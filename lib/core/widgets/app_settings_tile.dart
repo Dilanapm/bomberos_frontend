@@ -24,6 +24,7 @@ class AppToggleTile extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onChanged,
+    this.dense = false,
   });
 
   final IconData icon;
@@ -31,6 +32,7 @@ class AppToggleTile extends StatelessWidget {
   final String label;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -38,12 +40,22 @@ class AppToggleTile extends StatelessWidget {
     final textTheme  = Theme.of(context).textTheme;
     final labelColor = isDark ? AppColors.secondary50 : AppColors.secondary700;
 
+    final vPad = dense ? 8.0 : 14.0;
+    final badgeSize = dense ? 30.0 : 36.0;
+    final badgeIcon = dense ? 16.0 : 18.0;
+    final gap = dense ? 10.0 : 14.0;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: vPad),
       child: Row(
         children: [
-          AppIconBadge(icon: icon, color: iconColor),
-          const SizedBox(width: 14),
+          AppIconBadge(
+            icon: icon,
+            color: iconColor,
+            size: badgeSize,
+            iconSize: badgeIcon,
+          ),
+          SizedBox(width: gap),
           Expanded(
             child: Text(
               label,
@@ -87,6 +99,7 @@ class AppChevronTile extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.subtitle,
+    this.dense = false,
   });
 
   final IconData icon;
@@ -97,6 +110,8 @@ class AppChevronTile extends StatelessWidget {
   /// Texto secundario opcional debajo del label.
   final String? subtitle;
 
+  final bool dense;
+
   @override
   Widget build(BuildContext context) {
     final isDark       = Theme.of(context).brightness == Brightness.dark;
@@ -105,16 +120,27 @@ class AppChevronTile extends StatelessWidget {
     final subtitleColor = isDark ? AppColors.secondary400 : AppColors.secondary500;
     final chevronColor = isDark ? AppColors.secondary400 : AppColors.secondary300;
 
+    final vPad = dense ? 10.0 : 16.0;
+    final badgeSize = dense ? 30.0 : 36.0;
+    final badgeIcon = dense ? 16.0 : 18.0;
+    final gap = dense ? 10.0 : 14.0;
+    final chevronSize = dense ? 18.0 : 20.0;
+
     return TapScale(
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: vPad),
         child: Row(
           children: [
-            AppIconBadge(icon: icon, color: iconColor),
-            const SizedBox(width: 14),
+            AppIconBadge(
+              icon: icon,
+              color: iconColor,
+              size: badgeSize,
+              iconSize: badgeIcon,
+            ),
+            SizedBox(width: gap),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,7 +165,7 @@ class AppChevronTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(AppIcons.chevronRight, size: 20, color: chevronColor),
+            Icon(AppIcons.chevronRight, size: chevronSize, color: chevronColor),
           ],
         ),
       ),

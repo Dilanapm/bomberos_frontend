@@ -7,6 +7,7 @@ import '../../core/widgets/scaffold_with_navbar.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/screens/home_aprendiz_screen.dart';
 import '../../features/auth/presentation/screens/home_instructor_screen.dart';
+import '../../features/epp_training/presentation/screens/epp_evaluation_result_screen.dart';
 import '../../features/epp_training/presentation/screens/epp_training_screen.dart';
 import '../../features/epp_training/presentation/screens/instructor_aprendiz_selector_screen.dart';
 import '../../features/auth/presentation/screens/camera_permission_screen.dart';
@@ -187,6 +188,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.eppTraining,
         builder: (ctx, st) => const EppTrainingScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.eppEvaluationResult,
+        builder: (ctx, st) {
+          final args = st.extra as EppEvaluationResultArgs?;
+          if (args == null) {
+            return _PlaceholderScreen(
+              title: 'Resultado de Evaluación',
+              icon: Icons.assessment_outlined,
+            );
+          }
+          return EppEvaluationResultScreen(args: args);
+        },
       ),
     ],
 

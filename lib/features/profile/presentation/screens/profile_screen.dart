@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_icons.dart';
-import '../../../../core/widgets/app_scroll_body.dart';
 import '../../../../core/widgets/tap_scale.dart';
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/utils/app_toast.dart';
@@ -101,98 +100,130 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         centerTitle: true,
       ),
 
-      body: AppScrollBody(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: LayoutBuilder(
+        builder: (ctx, constraints) {
+          final compact = constraints.maxHeight <= 620;
+          final ultraCompact = constraints.maxHeight <= 600;
+          final vPad = ultraCompact ? 12.0 : (compact ? 16.0 : 20.0);
+          final gapS = ultraCompact ? 8.0 : (compact ? 12.0 : 16.0);
+          final gapM = ultraCompact ? 12.0 : (compact ? 20.0 : 28.0);
+          final gapFooter = ultraCompact ? 8.0 : (compact ? 16.0 : 24.0);
 
-            // ── Card: Avatar + nombre + rol ─────────────────────────────────
-            AppCard(
-              child: _editingName
-                  ? _EditProfileForm(
-                      nameCtrl:      _nameCtrl,
-                      usernameCtrl:  _usernameCtrl,
-                      errors:        _profileErrors,
-                      isSaving:      isSaving,
-                      onSave:        _saveProfile,
-                      onCancel:      () => setState(() => _editingName = false),
-                      onChanged:     (k) => setState(() => _profileErrors.remove(k)),
-                    )
-                  : _ProfileHeader(
-                      user:    user,
-                      isDark:  isDark,
-                      onEdit:  () => _startEdit(user.name, user.username),
-                    ),
-            ),
+          final content = Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: vPad),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
 
-            const SizedBox(height: 16),
+                // ── Card: Avatar + nombre + rol ─────────────────────────────
+                AppCard(
+                  child: _editingName
+                      ? _EditProfileForm(
+                          nameCtrl: _nameCtrl,
+                          usernameCtrl: _usernameCtrl,
+                          errors: _profileErrors,
+                          isSaving: isSaving,
+                          onSave: _saveProfile,
+                          onCancel: () =>
+                              setState(() => _editingName = false),
+                          onChanged: (k) =>
+                              setState(() => _profileErrors.remove(k)),
+                          compact: compact,
+                          ultraCompact: ultraCompact,
+                        )
+                      : _ProfileHeader(
+                          user: user,
+                          isDark: isDark,
+                          onEdit: () =>
+                              _startEdit(user.name, user.username),
+                          compact: compact,
+                          ultraCompact: ultraCompact,
+                        ),
+                ),
 
-            // ── Card: Configuración ─────────────────────────────────────────
-            AppCard(
-              child: Column(
-                children: [
-                  AppToggleTile(
-                    icon:     AppIcons.darkMode,
-                    iconColor: isDark ? AppColors.info400 : AppColors.secondary400,
-                    label:    'Modo Oscuro',
-                    value:    isDark,
-                    onChanged: (_) => ref
-                        .read(themeModeProvider.notifier)
-                        .toggle(Theme.of(context).brightness),
+                SizedBox(height: gapS),
+
+                // ── Card: Configuración ─────────────────────────────────────
+                AppCard(
+                  child: Column(
+                    children: [
+                      AppToggleTile(
+                        icon: AppIcons.darkMode,
+                        iconColor:
+                            isDark ? AppColors.info400 : AppColors.secondary400,
+                        label: 'Modo Oscuro',
+                        value: isDark,
+                        onChanged: (_) => ref
+                            .read(themeModeProvider.notifier)
+                            .toggle(Theme.of(context).brightness),
+                        dense: compact,
+                      ),
+                      Divider(height: 1, color: divColor),
+                      AppToggleTile(
+                        icon: AppIcons.notifications,
+                        iconColor: AppColors.primary5,
+                        label: 'Notificaciones',
+                        value: _notificationsOn,
+                        onChanged: (v) =>
+                            setState(() => _notificationsOn = v),
+                        dense: compact,
+                      ),
+                      Divider(height: 1, color: divColor),
+                      AppChevronTile(
+                        icon: AppIcons.security,
+                        iconColor: AppColors.success600,
+                        label: 'Seguridad',
+                        subtitle: 'Contraseña y acceso biométrico',
+                        onTap: () => context.push(RouteNames.security),
+                        dense: compact,
+                      ),
+                    ],
                   ),
-                  Divider(height: 1, color: divColor),
-                  AppToggleTile(
-                    icon:      AppIcons.notifications,
-                    iconColor: AppColors.primary5,
-                    label:     'Notificaciones',
-                    value:     _notificationsOn,
-                    onChanged: (v) => setState(() => _notificationsOn = v),
+                ),
+
+                SizedBox(height: gapS),
+
+                // ── Card: Ayuda ─────────────────────────────────────────────
+                // AppCard(
+                //   child: AppChevronTile(
+                //     icon: AppIcons.help,
+                //     iconColor:
+                //         isDark ? AppColors.secondary300 : AppColors.secondary400,
+                //     label: 'Ayuda y Soporte',
+                //     onTap: () {}, // TODO: navegar a pantalla de ayuda
+                //     dense: compact,
+                //   ),
+                // ),
+
+                // SizedBox(height: compact ? gapS : gapM),
+
+                // ── Botón cerrar sesión ─────────────────────────────────────
+                _LogoutButton(
+                  isDark: isDark,
+                  onTap: _logout,
+                  dense: ultraCompact,
+                ),
+
+                SizedBox(height: gapS),
+
+                // ── Footer versión ──────────────────────────────────────────
+                Text(
+                  'Bomberos TG App - Versión 1.0.0',
+                  textAlign: TextAlign.center,
+                  style: textTheme.labelSmall?.copyWith(
+                    color:
+                        isDark ? AppColors.secondary500 : AppColors.secondary400,
+                    fontWeight: FontWeight.w400,
                   ),
-                  Divider(height: 1, color: divColor),
-                  AppChevronTile(
-                    icon:      AppIcons.security,
-                    iconColor: AppColors.success600,
-                    label:     'Seguridad',
-                    subtitle:  'Contraseña y acceso biométrico',
-                    onTap:     () => context.push(RouteNames.security),
-                  ),
-                ],
-              ),
+                ),
+
+                SizedBox(height: gapFooter),
+              ],
             ),
+          );
 
-            const SizedBox(height: 16),
-
-            // ── Card: Ayuda ─────────────────────────────────────────────────
-            AppCard(
-              child: AppChevronTile(
-                icon:      AppIcons.help,
-                iconColor: isDark ? AppColors.secondary300 : AppColors.secondary400,
-                label:     'Ayuda y Soporte',
-                onTap:     () {}, // TODO: navegar a pantalla de ayuda
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            // ── Botón cerrar sesión ─────────────────────────────────────────
-            _LogoutButton(isDark: isDark, onTap: _logout),
-
-            const SizedBox(height: 16),
-
-            // ── Footer versión ──────────────────────────────────────────────
-            Text(
-              'Bomberos TG App - Versión 1.0.0',
-              textAlign: TextAlign.center,
-              style: textTheme.labelSmall?.copyWith(
-                color: isDark ? AppColors.secondary500 : AppColors.secondary400,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-
-            const SizedBox(height: 24),
-          ],
-        ),
+          return content;
+        },
       ),
     );
   }
@@ -208,11 +239,15 @@ class _ProfileHeader extends StatelessWidget {
     required this.user,
     required this.isDark,
     required this.onEdit,
+    required this.compact,
+    required this.ultraCompact,
   });
 
   final dynamic user;
   final bool isDark;
   final VoidCallback onEdit;
+  final bool compact;
+  final bool ultraCompact;
 
   @override
   Widget build(BuildContext context) {
@@ -221,8 +256,16 @@ class _ProfileHeader extends StatelessWidget {
     final roleBg      = isDark ? AppColors.dark3        : AppColors.secondary100;
     final roleText    = isDark ? AppColors.secondary300 : AppColors.secondary500;
 
+    final cardPad = ultraCompact ? 12.0 : (compact ? 16.0 : 20.0);
+    final avatarSize = ultraCompact ? 72.0 : (compact ? 88.0 : 96.0);
+    final gapS = ultraCompact ? 8.0 : (compact ? 12.0 : 16.0);
+    final gapXS = ultraCompact ? 6.0 : (compact ? 8.0 : 10.0);
+    final editBtnSize = ultraCompact ? 26.0 : 30.0;
+    final editIconSize = ultraCompact ? 14.0 : 16.0;
+    final miniEditIconSize = ultraCompact ? 11.0 : 12.0;
+
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(cardPad),
       child: Column(
         children: [
           // Avatar con botón de edición
@@ -230,8 +273,8 @@ class _ProfileHeader extends StatelessWidget {
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 96,
-                height: 96,
+                width: avatarSize,
+                height: avatarSize,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: isDark ? AppColors.dark3 : AppColors.secondary200,
@@ -256,15 +299,15 @@ class _ProfileHeader extends StatelessWidget {
                 child: GestureDetector(
                   onTap: onEdit,
                   child: Container(
-                    width: 30,
-                    height: 30,
+                    width: editBtnSize,
+                    height: editBtnSize,
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       color: AppColors.primary5,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       AppIcons.edit,
-                      size: 16,
+                      size: editIconSize,
                       color: AppColors.white,
                     ),
                   ),
@@ -273,7 +316,7 @@ class _ProfileHeader extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 16),
+          SizedBox(height: gapS),
 
           // Nombre con lápiz de edición
           Row(
@@ -295,9 +338,9 @@ class _ProfileHeader extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: AppColors.primary5,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     AppIcons.edit,
-                    size: 12,
+                    size: miniEditIconSize,
                     color: AppColors.white,
                   ),
                 ),
@@ -305,11 +348,14 @@ class _ProfileHeader extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 10),
+          SizedBox(height: gapXS),
 
           // Badge de rol
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            padding: EdgeInsets.symmetric(
+              horizontal: ultraCompact ? 10 : 12,
+              vertical: ultraCompact ? 4 : 5,
+            ),
             decoration: BoxDecoration(
               color: roleBg,
               borderRadius: BorderRadius.circular(20),
@@ -320,7 +366,11 @@ class _ProfileHeader extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(AppIcons.aprendiz, size: 12, color: roleText),
+                Icon(
+                  AppIcons.aprendiz,
+                  size: ultraCompact ? 11 : 12,
+                  color: roleText,
+                ),
                 const SizedBox(width: 5),
                 Text(
                   'ROL ${user.role.toUpperCase()}',
@@ -372,6 +422,8 @@ class _EditProfileForm extends StatelessWidget {
     required this.onSave,
     required this.onCancel,
     required this.onChanged,
+    required this.compact,
+    required this.ultraCompact,
   });
 
   final TextEditingController nameCtrl;
@@ -381,11 +433,16 @@ class _EditProfileForm extends StatelessWidget {
   final VoidCallback onSave;
   final VoidCallback onCancel;
   final ValueChanged<String> onChanged;
+  final bool compact;
+  final bool ultraCompact;
 
   @override
   Widget build(BuildContext context) {
+    final pad = ultraCompact ? 12.0 : (compact ? 16.0 : 20.0);
+    final gapS = ultraCompact ? 8.0 : (compact ? 10.0 : 12.0);
+
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(pad),
       child: Column(
         children: [
           AppTextField(
@@ -394,14 +451,14 @@ class _EditProfileForm extends StatelessWidget {
             errorText:  errors['name'],
             onChanged:  (_) => onChanged('name'),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: gapS),
           AppTextField(
             label:      'Usuario',
             controller: usernameCtrl,
             errorText:  errors['username'],
             onChanged:  (_) => onChanged('username'),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: ultraCompact ? 12 : (compact ? 16 : 20)),
           Row(
             children: [
               Expanded(
@@ -432,9 +489,10 @@ class _EditProfileForm extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _LogoutButton extends StatelessWidget {
-  const _LogoutButton({required this.isDark, required this.onTap});
+  const _LogoutButton({required this.isDark, required this.onTap, this.dense = false});
   final bool isDark;
   final VoidCallback onTap;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -442,30 +500,35 @@ class _LogoutButton extends StatelessWidget {
 
     return TapScale(
       child: GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 52,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.primary5, width: 1.5),
-          color: Colors.transparent,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(AppIcons.logout, color: AppColors.primary5, size: 20),
-            const SizedBox(width: 10),
-            Text(
-              'Cerrar Sesión',
-              style: textTheme.labelLarge?.copyWith(
+        onTap: onTap,
+        child: Container(
+          height: dense ? 44 : 52,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.primary5, width: 1.5),
+            color: Colors.transparent,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                AppIcons.logout,
                 color: AppColors.primary5,
-                fontWeight: FontWeight.w600,
+                size: dense ? 18 : 20,
               ),
-            ),
-          ],
+              SizedBox(width: dense ? 8 : 10),
+              Text(
+                'Cerrar Sesión',
+                style: textTheme.labelLarge?.copyWith(
+                  color: AppColors.primary5,
+                  fontWeight: FontWeight.w600,
+                  fontSize: dense ? 13 : null,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 }

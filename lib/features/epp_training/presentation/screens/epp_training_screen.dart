@@ -7,20 +7,22 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
 import 'package:dio/dio.dart';
 
+import '../../../../app/routes/route_names.dart';
 import '../../../../core/storage/secure_storage.dart';
 import '../../../../core/config/env.dart';
-import '../../../../core/network/dio_client.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../data/models/epp_step.dart';
 import '../../data/services/epp_websocket_service.dart';
 import '../providers/epp_training_provider.dart';
 import '../providers/aprendiz_provider.dart';
+import 'epp_evaluation_result_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Modos de entrada
@@ -258,41 +260,30 @@ class _EppTrainingScreenState extends ConsumerState<EppTrainingScreen> {
     }
   }
 
-  // ── Guardado de evaluación ───────────────────────────────────────────────
-
-  /// Envía [laravelPayload] directamente a Laravel (no a FastAPI).
-  /// URL y encabezados varían según si el usuario es instructor o aprendiz.
-  Future<bool> _saveEvaluation(Map<String, dynamic> laravelPayload) async {
-    try {
-      final storage      = ref.read(secureStorageProvider);
-      final role         = await storage.readUserRole() ?? 'aprendiz';
-      final isInstructor = role == 'instructor';
-
-      // Endpoint según rol
-      final url = isInstructor
-          ? '/instructor/evaluations'
-          : '/evaluations';
-
-      // Copia del payload para no mutar el original
-      final payload = Map<String, dynamic>.from(laravelPayload);
-
-      // Instructor: agregar user_id del aprendiz seleccionado
-      if (isInstructor) {
-        final aprendiz = ref.read(selectedAprendizProvider);
-        if (aprendiz != null) payload['user_id'] = aprendiz.id;
-      }
-
-      // dioClientProvider auto-inyecta Authorization: Bearer <token>
-      final dio      = ref.read(dioClientProvider).dio;
-      final response = await dio.post(url, data: payload);
-
-      return response.statusCode == 200 || response.statusCode == 201;
-    } catch (_) {
-      return false;
-    }
-  }
-
   // ── Evaluación GRU ────────────────────────────────────────────────────────
+
+  void _openEvaluationResultScreen(Map<String, dynamic> result) {
+    final precision = (result['precision'] as num?)?.toDouble() ?? 0.0;
+    final totalVent = (result['total_ventanas'] as num?)?.toInt() ?? 0;
+    final correctos = (result['correctos'] as List?)?.cast<String>() ?? [];
+    final incorrectos =
+        (result['incorrectos'] as List?)?.cast<String>() ?? [];
+    final scores = (result['scores'] as Map<String, dynamic>?) ?? {};
+    final laravelPayload =
+        (result['laravel_payload'] as Map<String, dynamic>?) ?? {};
+
+    context.push(
+      RouteNames.eppEvaluationResult,
+      extra: EppEvaluationResultArgs(
+        precision: precision,
+        totalVentanas: totalVent,
+        correctos: correctos,
+        incorrectos: incorrectos,
+        scores: scores,
+        laravelPayload: laravelPayload,
+      ),
+    );
+  }
 
   Future<void> _evaluateWithGRU() async {
     setState(() => _isEvaluating = true);
@@ -314,7 +305,7 @@ class _EppTrainingScreenState extends ConsumerState<EppTrainingScreen> {
       if (!mounted) return;
 
       if (response.statusCode == 200) {
-        _showEvaluationDialog(response.data as Map<String, dynamic>);
+        _openEvaluationResultScreen(response.data as Map<String, dynamic>);
       } else {
         throw Exception('Respuesta inesperada: ${response.statusCode}');
       }
@@ -339,197 +330,6 @@ class _EppTrainingScreenState extends ConsumerState<EppTrainingScreen> {
     } finally {
       if (mounted) setState(() => _isEvaluating = false);
     }
-  }
-
-  void _showEvaluationDialog(Map<String, dynamic> result) {
-    final precision   = (result['precision']  as num?)?.toDouble() ?? 0.0;
-    final totalVent   = result['total_ventanas'] ?? 0;
-    final correctos   = (result['correctos']   as List?)?.cast<String>() ?? [];
-    final incorrectos = (result['incorrectos'] as List?)?.cast<String>() ?? [];
-    final scores        = (result['scores']      as Map<String, dynamic>?) ?? {};
-    final laravelPayload = (result['laravel_payload'] as Map<String, dynamic>?) ?? {};
-
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        bool isSaving = false;
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-
-          Future<void> onGuardar() async {
-            setDialogState(() => isSaving = true);
-            final ok = await _saveEvaluation(laravelPayload);
-            if (!ctx.mounted) return;
-            Navigator.of(ctx).pop();
-            if (ok) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('✅ Evaluación guardada correctamente'),
-                    backgroundColor: AppColors.success500,
-                  ),
-                );
-                ref.read(eppTrainingProvider.notifier).clearHistory();
-              }
-            } else {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('❌ Error al guardar la evaluación'),
-                    backgroundColor: AppColors.primary5,
-                  ),
-                );
-              }
-            }
-          }
-
-          void onCancelar() {
-            Navigator.of(ctx).pop();
-            ref.read(eppTrainingProvider.notifier).clearHistory();
-          }
-
-          return AlertDialog(
-            backgroundColor: AppColors.secondary700,
-            title: const Text(
-              'Evaluación Completa',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-            ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Precisión general
-              Center(
-                child: Text(
-                  '${(precision * 100).toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.w900,
-                    color: precision >= 0.8
-                        ? AppColors.success500
-                        : AppColors.accent300,
-                  ),
-                ),
-              ),
-              Center(
-                child: Text(
-                  'precisión general',
-                  style: TextStyle(
-                    color: AppColors.secondary300,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Center(
-                child: Text(
-                  'Total ventanas: $totalVent',
-                  style: const TextStyle(
-                      color: AppColors.secondary300, fontSize: 12),
-                ),
-              ),
-              const Divider(height: 24, color: AppColors.secondary600),
-
-              // Pasos correctos
-              if (correctos.isNotEmpty) ..._buildStepList(
-                ctx, '✅ Pasos correctos', correctos, AppColors.success500),
-
-              // Pasos incorrectos
-              if (incorrectos.isNotEmpty) ..._buildStepList(
-                ctx, '❌ Pasos incorrectos', incorrectos, AppColors.primary4),
-
-              // Scores individuales
-              if (scores.isNotEmpty) ...[  
-                const SizedBox(height: 8),
-                const Text('Scores por paso:',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13)),
-                const SizedBox(height: 8),
-                ...scores.entries.map((e) {
-                  final s = (e.value as num).toDouble();
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(e.key,
-                              style: const TextStyle(
-                                  color: AppColors.secondary300,
-                                  fontSize: 12))),
-                        Text(
-                          '${(s * 100).toStringAsFixed(1)}%',
-                          style: TextStyle(
-                            color: s >= 0.5
-                                ? AppColors.success500
-                                : AppColors.primary4,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-              ],
-            ],
-          ),
-        ),
-            actions: [
-              // Cancelar — descarta sin guardar
-              TextButton(
-                onPressed: isSaving ? null : onCancelar,
-                child: const Text(
-                  'Descartar',
-                  style: TextStyle(color: AppColors.secondary300),
-                ),
-              ),
-              // Guardar
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success500,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: isSaving ? null : onGuardar,
-                child: isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Guardar evaluación'),
-              ),
-            ],
-          );
-        },
-      );
-    });
-  }
-
-  List<Widget> _buildStepList(
-      BuildContext ctx, String title, List<String> steps, Color color) {
-    return [
-      Text(title,
-          style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: 13)),
-      const SizedBox(height: 6),
-      ...steps.map((s) => Padding(
-            padding: const EdgeInsets.only(left: 12, bottom: 3),
-            child: Text('• $s',
-                style: TextStyle(color: color, fontSize: 12)),
-          )),
-      const SizedBox(height: 12),
-    ];
   }
 
   // ── Cambio de modo ────────────────────────────────────────────────────────

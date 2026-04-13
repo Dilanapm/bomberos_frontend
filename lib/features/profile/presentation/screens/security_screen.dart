@@ -73,15 +73,18 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (_) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            24, 20, 24,
-            MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+        builder: (ctx, setSheetState) {
+          final safeBottom = MediaQuery.viewPaddingOf(ctx).bottom;
+          final gestureBottom = MediaQuery.of(ctx).systemGestureInsets.bottom;
+          final bottomInset = safeBottom > gestureBottom ? safeBottom : gestureBottom;
+          final bottomPadding = MediaQuery.viewInsetsOf(ctx).bottom + bottomInset + 48;
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(24, 20, 24, bottomPadding),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               // Handle
               Center(
                 child: Container(
@@ -134,9 +137,10 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
                   if (mounted && _pwErrors.isEmpty) nav.pop();
                 },
               ),
-            ],
-          ),
-        ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

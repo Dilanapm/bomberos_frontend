@@ -18,6 +18,7 @@ class RouteNames {
   static const cameraPermission         = '/training/camera-permission';
   static const cameraSession            = '/training/camera-session';
   static const eppTraining              = '/training/epp';
+  static const eppEvaluationResult      = '/training/epp/result';
   static const instructorTrainingSetup  = '/training/instructor-setup';
   static const aprendizStats            = '/aprendiz/stats';
   static const aprendizEvalDetail       = '/aprendiz/stats/evaluation';
