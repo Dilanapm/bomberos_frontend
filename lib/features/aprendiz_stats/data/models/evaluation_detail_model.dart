@@ -6,6 +6,13 @@ double _toDouble(dynamic v) =>
 int _toInt(dynamic v) =>
     v is num ? v.toInt() : int.parse(v.toString());
 
+/// Parses a value that can be num, String, or null.
+double? _toDoubleOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString());
+}
+
 class EvalStepModel extends EvalStep {
   const EvalStepModel({
     required super.stepNumber,
@@ -14,22 +21,28 @@ class EvalStepModel extends EvalStep {
     required super.status,
     required super.detected,
     super.feedback,
-    required super.timeStart,
-    required super.timeEnd,
-    required super.duration,
+    super.timeStart,
+    super.timeEnd,
+    super.duration,
+    super.peakTime,
+    super.peakConfidence,
+    super.detectionType,
   });
 
   factory EvalStepModel.fromJson(Map<String, dynamic> json) {
     return EvalStepModel(
-      stepNumber: _toInt(json['step_number']),
-      stepName:    json['step_name']   as String,
-      score:      _toDouble(json['score']),
-      status:      json['status']      as String,
-      detected:    json['detected']    as bool? ?? false,
-      feedback:    json['feedback']    as String?,
-      timeStart:  _toDouble(json['time_start']),
-      timeEnd:    _toDouble(json['time_end']),
-      duration:   _toDouble(json['duration']),
+      stepNumber:     _toInt(json['step_number']),
+      stepName:        json['step_name']       as String,
+      score:          _toDouble(json['score']),
+      status:          json['status']          as String,
+      detected:        json['detected']        as bool? ?? false,
+      feedback:        json['feedback']        as String?,
+      timeStart:      _toDoubleOrNull(json['time_start']),
+      timeEnd:        _toDoubleOrNull(json['time_end']),
+      duration:       _toDoubleOrNull(json['duration']),
+      peakTime:       _toDoubleOrNull(json['peak_time']),
+      peakConfidence: _toDoubleOrNull(json['peak_confidence']),
+      detectionType:   json['detection_type']  as String?,
     );
   }
 }

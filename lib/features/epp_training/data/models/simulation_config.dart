@@ -267,5 +267,86 @@ class SimulationConfig {
       },
     ),
 
+    // ── Video 4 ──────────────────────────────────────────────────────────────
+    // Pasos fuera de orden: Esclavina (paso 2) detectada antes que Pantalón (paso 1)
+    // Además, el paso final (Postura Final / paso 6) no se detecta.
+    4: SimulationStepConfig(
+      secondToStepId: const {
+        4:  1, // Esclavina          → s4
+        12: 0, // Pantalón Ignífugo  → s12
+        20: 2, // Chaqueta Ignífuga  → s20
+        45: 3, // Casco              → s45
+        53: 4, // Guantes            → s53
+        // 5: Postura Final (paso 5) NO se activa (no hubo activación)
+      },
+      evaluationResult: const {
+        'precision':    0.681,
+        'total_ventanas': 80,
+        'correctos':  [
+          'pantalon_ignifugo',
+          'chaqueta_ignifuga',
+          'casco',
+          'guantes',
+        ],
+        'incorrectos': ['esclavina', 'postura_final'],
+        'scores': {
+          'pantalon_ignifugo': 0.86,
+          'esclavina':         0.74,
+          'chaqueta_ignifuga': 0.82,
+          'casco':             0.77,
+          'guantes':           0.89,
+          'postura_final':     0.00,
+        },
+        'laravel_payload': {
+          'general_score':         68.1,
+          'total_steps':           6,
+          'steps_completed':       5,
+          'correct_order':         false,
+          'duration_seconds':      53.0,
+          'total_frames':          636,
+          'frames_with_detection': 520,
+          'detection_rate':        81.8,
+          'steps_evaluation': [
+            {
+              'step_number': 1, 'step_name': 'Pantalón Ignífugo',
+              'score': 0.86, 'status': 'correcto', 'detected': true,
+              'feedback': 'Correcto',
+              'time_start': 4.0, 'time_end': 12.0, 'duration': 8.0,
+            },
+            {
+              'step_number': 2, 'step_name': 'Esclavina',
+              'score': 0.74, 'status': 'correcto', 'detected': true,
+              'feedback': 'Detectado fuera de orden',
+              'time_start': 0.0, 'time_end': 4.0, 'duration': 4.0,
+            },
+            {
+              'step_number': 3, 'step_name': 'Chaqueta Ignífuga',
+              'score': 0.82, 'status': 'correcto', 'detected': true,
+              'feedback': 'Correcto',
+              'time_start': 12.0, 'time_end': 20.0, 'duration': 8.0,
+            },
+            {
+              'step_number': 4, 'step_name': 'Casco',
+              'score': 0.77, 'status': 'correcto', 'detected': true,
+              'feedback': 'Correcto',
+              'time_start': 20.0, 'time_end': 45.0, 'duration': 25.0,
+            },
+            {
+              'step_number': 5, 'step_name': 'Guantes',
+              'score': 0.89, 'status': 'correcto', 'detected': true,
+              'feedback': 'Correcto',
+              'time_start': 45.0, 'time_end': 53.0, 'duration': 8.0,
+            },
+            {
+              'step_number': 6, 'step_name': 'Postura Final',
+              'score': 0.00, 'status': 'incorrecto', 'detected': false,
+              'feedback': 'No se realizó',
+              'time_start': null, 'time_end': null, 'duration': null,
+            },
+          ],
+        },
+      },
+    ),
+
   };
 }

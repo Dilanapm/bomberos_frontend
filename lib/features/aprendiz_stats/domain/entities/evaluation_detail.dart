@@ -37,9 +37,12 @@ class EvalStep {
     required this.status,
     required this.detected,
     this.feedback,
-    required this.timeStart,
-    required this.timeEnd,
-    required this.duration,
+    this.timeStart,
+    this.timeEnd,
+    this.duration,
+    this.peakTime,
+    this.peakConfidence,
+    this.detectionType,
   });
 
   final int stepNumber;
@@ -52,9 +55,16 @@ class EvalStep {
   final String status;
   final bool detected;
   final String? feedback;
-  final double timeStart;
-  final double timeEnd;
-  final double duration;
+
+  // Tiempos — null cuando el paso no fue detectado
+  final double? timeStart;
+  final double? timeEnd;
+  final double? duration;
+
+  // Campos adicionales de FastAPI
+  final double? peakTime;        // segundo del frame con mayor confianza
+  final double? peakConfidence;  // confianza máxima (0..1)
+  final String? detectionType;   // "instant" | "segment" | null
 
   double get scorePercent => score * 100;
 }

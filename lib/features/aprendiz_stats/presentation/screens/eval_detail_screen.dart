@@ -386,82 +386,103 @@ class _StepCard extends StatelessWidget {
   final EvalStep step;
   final bool isDark;
 
+  /// Formatea segundos → "MM:SS"
+  static String _fmt(double? seconds) {
+    if (seconds == null) return '--:--';
+    final mins = (seconds / 60).floor();
+    final secs = (seconds % 60).floor();
+    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
+  /// Devuelve la duración del paso en "MM:SS", o null si no fue detectado.
+  String? _durationLabel() {
+    if (!step.detected) return null;
+    final dur = step.duration;
+    if (dur == null) return null;
+    return _fmt(dur);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final pct = step.scorePercent;
-    final col = _scoreColor(pct);
-    final icon = pct >= 75
+    final pct      = step.scorePercent;
+    final col      = _scoreColor(pct);
+    final icon     = pct >= 75
         ? Icons.check_circle_rounded
         : pct >= 50
             ? Icons.warning_rounded
             : Icons.cancel_rounded;
-
-    // Formatear duración
-    final mins = (step.duration / 60).floor();
-    final secs = (step.duration % 60).floor();
-    final durationStr =
-        '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    final durationLabel = _durationLabel();
+    final subColor      = isDark ? AppColors.secondary400 : AppColors.secondary500;
 
     return Card(
-      color: isDark ? AppColors.cardDark : AppColors.white,
-      margin: const EdgeInsets.only(bottom: 12),
+      color:     isDark ? AppColors.cardDark : AppColors.white,
+      margin:    const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: col.withAlpha(60)),
+        side:         BorderSide(color: col.withAlpha(60)),
       ),
       elevation: 0,
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Encabezado: icono + nombre + duración
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, color: col, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        step.stepName,
-                        style:
-                            Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                      ),
-                      const SizedBox(height: 2),
-                      if (step.feedback != null && step.feedback!.isNotEmpty)
-                        Text(
-                          step.feedback!,
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(
-                                color: isDark
-                                    ? AppColors.secondary400
-                                    : AppColors.secondary500,
-                                fontStyle: FontStyle.italic,
-                              ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+            Icon(icon, color: col, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    step.stepName,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
+                  ),
+                  const SizedBox(height: 2),
+                  if (step.feedback != null && step.feedback!.isNotEmpty)
+                    Text(
+                      step.feedback!,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: subColor,
+                            fontStyle: FontStyle.italic,
+                          ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+            if (durationLabel != null) ...[
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Duración',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: subColor,
+                          fontSize: 10,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.timer_outlined, size: 11, color: subColor),
+                      const SizedBox(width: 3),
+                      Text(
+                        durationLabel,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: subColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  durationStr,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: isDark
-                            ? AppColors.secondary400
-                            : AppColors.secondary500,
-                      ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

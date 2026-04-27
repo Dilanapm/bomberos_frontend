@@ -195,8 +195,8 @@ class _EppEvaluationResultScreenState
       final body = <String, dynamic>{
         'comment': comment,
         'type': type,
-        'step_number': ?stepNumber,
-      };
+        'step_number': stepNumber,
+      }..removeWhere((_, v) => v == null);
       final res = await dio.post(
         ApiEndpoints.instructorEvalComments(evalId),
         data: body,
