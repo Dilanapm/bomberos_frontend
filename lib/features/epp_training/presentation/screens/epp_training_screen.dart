@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' show Random;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -9,7 +10,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:video_player/video_player.dart';
 
 import 'package:dio/dio.dart';
@@ -19,6 +20,7 @@ import '../../../../core/storage/secure_storage.dart';
 import '../../../../core/config/env.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../data/models/epp_step.dart';
+import '../../data/models/simulation_config.dart';
 import '../../data/services/epp_websocket_service.dart';
 import '../providers/epp_training_provider.dart';
 import '../providers/aprendiz_provider.dart';
@@ -60,8 +62,13 @@ class _EppTrainingScreenState extends ConsumerState<EppTrainingScreen> {
   bool _isEvaluating = false;
   Timer? _frameTimer;
 
-  // ── Picker ────────────────────────────────────────────────────────────────
-  final ImagePicker _picker = ImagePicker();
+  // ── Simulación (video_N.mp4) ───────────────────────────────────────────────
+  bool _isSimulation    = false;
+  int  _simVideoNumber  = 0;
+  Timer? _simTimer;
+  int    _simElapsed    = 0;
+
+  // (file_picker no necesita instancia — usa FilePicker.platform)
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -110,13 +117,31 @@ class _EppTrainingScreenState extends ConsumerState<EppTrainingScreen> {
 
   // ── Vídeo de prueba ───────────────────────────────────────────────────────
 
+  /// Detecta si el archivo seleccionado es un video de simulación (video_N.mp4).
+  void _detectSimulation(String videoPath) {
+    final num = SimulationConfig.videoNumberFromPath(videoPath);
+    _isSimulation   = num != null && SimulationConfig.forVideo(num) != null;
+    _simVideoNumber = num ?? 0;
+  }
+
   Future<void> _pickVideo() async {
-    final xfile = await _picker.pickVideo(source: ImageSource.gallery);
-    if (xfile == null) return;
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.video,
+      allowMultiple: false,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    final path = file.path;
+    if (path == null) return;
+
+    // PlatformFile.name es el nombre ORIGINAL del archivo (no la ruta de caché),
+    // lo que permite la detección fiable del video de simulación.
+    _detectSimulation(file.name);
 
     await _videoController?.dispose();
-    final controller =
-        VideoPlayerController.file(File(xfile.path));
+    final controller = VideoPlayerController.file(File(path));
     await controller.initialize();
     await controller.setLooping(true);
 
@@ -131,24 +156,34 @@ class _EppTrainingScreenState extends ConsumerState<EppTrainingScreen> {
 
   Future<void> _startStreaming() async {
     final notifier = ref.read(eppTrainingProvider.notifier);
-    final ws      = ref.read(eppWebSocketServiceProvider);
+    final ws       = ref.read(eppWebSocketServiceProvider);
 
     // Leer token Sanctum y aprendiz seleccionado
-    final token     = await ref.read(secureStorageProvider).readToken() ?? '';
-    final aprendiz  = ref.read(selectedAprendizProvider);
+    final token    = await ref.read(secureStorageProvider).readToken() ?? '';
+    final aprendiz = ref.read(selectedAprendizProvider);
 
-    // Conectar WebSocket
+    // Siempre intentar conectar WS (en simulación conecta pero no envía frames)
     await notifier.connect(authToken: token, aprendizId: aprendiz?.id);
+
+    // ── Modo simulación ────────────────────────────────────────────────────
+    if (_isSimulation) {
+      // Reproducir video (solo visual) y arrancar el timer de simulación.
+      // Procedemos incluso si el WS no está disponible.
+      await _videoController!.play();
+      if (mounted) setState(() => _isStreaming = true);
+      _startSimTimer();
+      return;
+    }
+
+    // ── Modo normal: requiere conexión WS ──────────────────────────────────
     if (!ref.read(eppTrainingProvider).isConnected) return;
 
     if (_mode == _InputMode.camera) {
-      // Modo cámara: usar startImageStream
       await _cameraController!.startImageStream((image) {
         if (!_isStreaming) return;
         ws.sendCameraFrame(image);
       });
     } else {
-      // Modo vídeo: reproducir y capturar frames con RepaintBoundary
       await _videoController!.play();
       _frameTimer = Timer.periodic(
         const Duration(milliseconds: 120), // ~8 FPS
@@ -157,6 +192,97 @@ class _EppTrainingScreenState extends ConsumerState<EppTrainingScreen> {
     }
 
     if (mounted) setState(() => _isStreaming = true);
+  }
+
+  // ── Timer de simulación ───────────────────────────────────────────────────
+
+  void _startSimTimer() {
+    final config = SimulationConfig.forVideo(_simVideoNumber);
+    if (config == null) return;
+
+    _simElapsed = 0;
+    final rng = Random();
+
+    // Mapa invertido: segundo → paso_id (para buscar confirmaciones futuras)
+    final confirmSeconds = config.secondToStepId; // {segundo: paso_id}
+
+    _simTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      _simElapsed++;
+
+      // ── 1. ¿Hay un paso a confirmar en este segundo? ──────────────────────
+      final confirmId = confirmSeconds[_simElapsed];
+      if (confirmId != null) {
+        // Confirmación real: marca el paso como completado
+        ref.read(eppTrainingProvider.notifier).simulateStep(confirmId);
+      } else {
+        // ── 2. Variabilidad de la red neuronal ──────────────────────────────
+
+        // Buscar si alguna confirmación ocurre en los próximos 3 segundos
+        // para hacer el "build-up" de confianza antes de confirmar.
+        MapEntry<int, int>? upcoming;
+        for (int delta = 1; delta <= 3; delta++) {
+          final futureStep = confirmSeconds[_simElapsed + delta];
+          if (futureStep != null) {
+            upcoming = MapEntry(_simElapsed + delta, futureStep);
+            break;
+          }
+        }
+
+        if (upcoming != null) {
+          // Build-up: la red empieza a "ver" el paso que va a confirmar.
+          // Confianza crece cuanto más cerca está el segundo de confirmación.
+          // delta=3 → 0.20, delta=2 → 0.28, delta=1 → 0.38
+          final delta = upcoming.key - _simElapsed;
+          final buildConf = 0.20 + (3 - delta) * 0.09 + rng.nextDouble() * 0.06;
+
+          // Alta probabilidad de mostrar el paso próximo, baja de mostrar ruido
+          if (rng.nextDouble() < 0.75) {
+            ref.read(eppTrainingProvider.notifier)
+                .simulateVariability(upcoming.value, buildConf.clamp(0.0, 0.48));
+          } else {
+            // Ruido ocasional incluso en build-up
+            final noise = rng.nextDouble() * 0.25;
+            final candidates = [0, 1, 2, 3, 4, 5];
+            candidates.remove(upcoming.value);
+            ref.read(eppTrainingProvider.notifier).simulateVariability(
+              candidates[rng.nextInt(candidates.length)],
+              noise,
+            );
+          }
+        } else {
+          // Sin confirmación próxima: ruido puro, como la red "buscando"
+          if (rng.nextDouble() < 0.55) {
+            // 40 % paso_id=-1 (acumulando), 60 % paso aleatorio con muy baja conf.
+            final showAcumulando = rng.nextDouble() < 0.40;
+            if (showAcumulando) {
+              ref.read(eppTrainingProvider.notifier)
+                  .simulateVariability(-1, 0.0);
+            } else {
+              final allIds = [-1, 0, 1, 2, 3, 4, 5];
+              final randomId = allIds[rng.nextInt(allIds.length)];
+              final noise    = 0.06 + rng.nextDouble() * 0.28; // 0.06–0.34
+              ref.read(eppTrainingProvider.notifier)
+                  .simulateVariability(randomId, noise);
+            }
+          }
+          // ~45 % de los segundos no emite nada → pantalla queda igual
+        }
+      }
+
+      // ── 3. Auto-terminar cuando todos los pasos estén completados ─────────
+      final completedCount =
+          ref.read(eppTrainingProvider).completedStepIds.length;
+      if (completedCount >= EppStep.eppSteps.length) {
+        timer.cancel();
+        _simTimer = null;
+        await _terminateTraining();
+      }
+    });
   }
 
   Future<void> _captureAndSendVideoFrame(EppWebSocketService ws) async {
@@ -207,6 +333,8 @@ class _EppTrainingScreenState extends ConsumerState<EppTrainingScreen> {
   void _stopStreaming({bool disconnect = false}) {
     _frameTimer?.cancel();
     _frameTimer = null;
+    _simTimer?.cancel();
+    _simTimer = null;
 
     if (_cameraController != null &&
         _cameraController!.value.isStreamingImages) {
@@ -221,11 +349,13 @@ class _EppTrainingScreenState extends ConsumerState<EppTrainingScreen> {
     if (mounted) setState(() => _isStreaming = false);
   }
 
-  /// Termina el ejercicio: pausa vídeo, cancela timer, cierra WebSocket.
+  /// Termina el ejercicio: pausa vídeo, cancela timers, cierra WebSocket.
   Future<void> _terminateTraining() async {
     try {
       _frameTimer?.cancel();
       _frameTimer = null;
+      _simTimer?.cancel();
+      _simTimer = null;
 
       if (_cameraController != null &&
           _cameraController!.value.isStreamingImages) {
@@ -285,10 +415,185 @@ class _EppTrainingScreenState extends ConsumerState<EppTrainingScreen> {
     );
   }
 
+  /// Construye un resultado parcial cuando la simulación se detiene antes de
+  /// completar todos los pasos. Solo los pasos detectados contribuyen al score.
+  Map<String, dynamic> _buildPartialSimResult(
+    SimulationStepConfig config,
+    Set<int> completedIds,
+    String sessionId,
+  ) {
+    final rng = Random();
+    final fullSteps = EppStep.eppSteps; // lista ordenada de pasos (id 0..5)
+
+    // Scores base del config para los pasos detectados
+    final baseScores =
+        (config.evaluationResult['scores'] as Map<String, dynamic>?) ?? {};
+
+    // Tiempos del config (steps_evaluation del resultado completo)
+    final fullEvalList = (config.evaluationResult['laravel_payload']
+            ['steps_evaluation'] as List<dynamic>?) ??
+        [];
+
+    double sumScores = 0.0;
+    final List<Map<String, dynamic>> stepsEval = [];
+    final List<String> correctos   = [];
+    final List<String> incorrectos = [];
+    final Map<String, double> scores = {};
+
+    for (int i = 0; i < fullSteps.length; i++) {
+      final stepId   = i; // IDs van de 0 a 5
+      final step     = fullSteps[i];
+      final detected = completedIds.contains(stepId);
+
+      // Buscar el nombre de EPP desde el resultado configurado
+      final configStep = fullEvalList.length > i
+          ? (fullEvalList[i] as Map<String, dynamic>)
+          : <String, dynamic>{};
+      final stepName =
+          configStep['step_name'] as String? ?? step.displayName;
+
+      // Clave de score (misma que usa el backend, ej: 'pantalon_ignifugo')
+      final scoreKey = baseScores.keys.elementAtOrNull(i);
+
+      if (detected) {
+        // Tomar el score configurado con pequeña variación aleatoria ±3 %
+        final baseScore =
+            (scoreKey != null ? (baseScores[scoreKey] as num?)?.toDouble() : null)
+                ?? (configStep['score'] as num?)?.toDouble()
+                ?? 0.75;
+        final variation = (rng.nextDouble() - 0.5) * 0.06; // ±3 %
+        final score = (baseScore + variation).clamp(0.0, 1.0);
+
+        sumScores += score;
+        scores[scoreKey ?? step.displayName] = score;
+
+        final timeStart =
+            (configStep['time_start'] as num?)?.toDouble() ?? 0.0;
+        final timeEnd   =
+            (configStep['time_end']   as num?)?.toDouble() ?? 0.0;
+        final duration  = timeEnd - timeStart;
+
+        final status    = score >= 0.7 ? 'correcto' : 'incorrecto';
+        final feedback  = score >= 0.7
+            ? (configStep['feedback'] as String? ?? 'Correcto')
+            : 'Ejecución parcial';
+
+        if (status == 'correcto') {
+          correctos.add(scoreKey ?? step.displayName);
+        } else {
+          incorrectos.add(scoreKey ?? step.displayName);
+        }
+
+        stepsEval.add({
+          'step_number': i + 1,
+          'step_name':   stepName,
+          'score':       double.parse(score.toStringAsFixed(2)),
+          'status':      status,
+          'detected':    true,
+          'feedback':    feedback,
+          'time_start':  timeStart,
+          'time_end':    timeEnd,
+          'duration':    double.parse(duration.toStringAsFixed(1)),
+        });
+      } else {
+        // Paso no detectado
+        scores[scoreKey ?? step.displayName] = 0.0;
+        incorrectos.add(scoreKey ?? step.displayName);
+
+        stepsEval.add({
+          'step_number': i + 1,
+          'step_name':   stepName,
+          'score':       0.0,
+          'status':      'incorrecto',
+          'detected':    false,
+          'feedback':    'No se realizó',
+          'time_start':  null,
+          'time_end':    null,
+          'duration':    null,
+        });
+      }
+    }
+
+    final detectedCount = completedIds.length;
+    // El promedio general divide entre el TOTAL de pasos (6), no solo los detectados.
+    // Pasos no realizados cuentan como 0, bajando el score global.
+    final precision    = sumScores / fullSteps.length;
+    final generalScore = precision * 100;
+
+    // Verificar si los pasos detectados estuvieron en el orden correcto
+    // (simplificado: el orden correcto es 0→1→2→3→4→5)
+    final orderedIds = completedIds.toList()..sort();
+    final correctOrder = orderedIds.isEmpty ||
+        orderedIds.every((id) => orderedIds.indexOf(id) == id);
+
+    final totalFrames     = (_simElapsed * 12).round(); // ~12 fps estimados
+    final framesDetected  = (totalFrames * 0.82).round();
+    final detectionRate   =
+        totalFrames > 0 ? (framesDetected / totalFrames) * 100 : 0.0;
+
+    return {
+      'precision':       double.parse(precision.toStringAsFixed(3)),
+      'total_ventanas':  _simElapsed * 2,
+      'correctos':       correctos,
+      'incorrectos':     incorrectos,
+      'scores':          scores,
+      'laravel_payload': {
+        'session_id':           sessionId,
+        'general_score':        double.parse(generalScore.toStringAsFixed(1)),
+        'total_steps':          fullSteps.length,
+        'steps_completed':      detectedCount,
+        'correct_order':        correctOrder,
+        'duration_seconds':     _simElapsed.toDouble(),
+        'total_frames':         totalFrames,
+        'frames_with_detection': framesDetected,
+        'detection_rate':       double.parse(detectionRate.toStringAsFixed(1)),
+        'steps_evaluation':     stepsEval,
+      },
+    };
+  }
+
   Future<void> _evaluateWithGRU() async {
     setState(() => _isEvaluating = true);
+
+    // ── Modo simulación ──────────────────────────────────────────────────────
+    if (_isSimulation) {
+      final config = SimulationConfig.forVideo(_simVideoNumber);
+      if (config != null) {
+        // Simular 5-6 segundos de procesamiento GRU
+        final delay = 5 + Random().nextInt(2);
+        await Future<void>.delayed(Duration(seconds: delay));
+        if (!mounted) return;
+
+        // Usar el session_id real si el WS conectó; si no, generar uno simulado.
+        final sessionId = ref.read(eppTrainingProvider).sessionId
+            ?? 'sim_video_${_simVideoNumber}_'
+               '${DateTime.now().millisecondsSinceEpoch}';
+
+        final completedIds = ref.read(eppTrainingProvider).completedStepIds;
+        final isFullCompletion = completedIds.length >= EppStep.eppSteps.length;
+
+        Map<String, dynamic> result;
+
+        if (isFullCompletion) {
+          // Resultado completo pre-configurado
+          result = Map<String, dynamic>.from(config.evaluationResult);
+          final payload = Map<String, dynamic>.from(
+              result['laravel_payload'] as Map<String, dynamic>);
+          payload['session_id'] = sessionId;
+          result['laravel_payload'] = payload;
+        } else {
+          // Resultado parcial: solo pasos detectados contribuyen al score
+          result = _buildPartialSimResult(config, completedIds, sessionId);
+        }
+
+        _openEvaluationResultScreen(result);
+      }
+      if (mounted) setState(() => _isEvaluating = false);
+      return;
+    }
+
+    // ── Evaluación real con FastAPI ──────────────────────────────────────────
     try {
-      // Leer sessionId del estado del provider (persiste tras desconexión)
       final sessionId = ref.read(eppTrainingProvider).sessionId;
 
       if (sessionId == null || sessionId.isEmpty) {
@@ -397,6 +702,7 @@ class _EppTrainingScreenState extends ConsumerState<EppTrainingScreen> {
                 state: state,
                 isStreaming: _isStreaming,
                 isEvaluating: _isEvaluating,
+                isSimulation: _isSimulation,
                 videoReady: _videoReady,
                 cameraReady: _cameraReady,
                 onPickVideo: _pickVideo,
@@ -640,6 +946,7 @@ class _BottomPanel extends StatelessWidget {
     required this.state,
     required this.isStreaming,
     required this.isEvaluating,
+    required this.isSimulation,
     required this.videoReady,
     required this.cameraReady,
     required this.onPickVideo,
@@ -652,6 +959,7 @@ class _BottomPanel extends StatelessWidget {
   final EppTrainingState state;
   final bool isStreaming;
   final bool isEvaluating;
+  final bool isSimulation;
   final bool videoReady;
   final bool cameraReady;
   final VoidCallback onPickVideo;
@@ -694,6 +1002,43 @@ class _BottomPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
+
+          // ── Badge modo simulación ───────────────────────────────────────
+          // if (isSimulation)
+          //   Padding(
+          //     padding: const EdgeInsets.only(bottom: 10),
+          //     child: Row(
+          //       mainAxisSize: MainAxisSize.min,
+          //       children: [
+          //         Container(
+          //           padding: const EdgeInsets.symmetric(
+          //               horizontal: 10, vertical: 4),
+          //           decoration: BoxDecoration(
+          //             color: AppColors.info600.withAlpha(40),
+          //             borderRadius: BorderRadius.circular(20),
+          //             border: Border.all(color: AppColors.info600, width: 1),
+          //           ),
+          //           child: const Row(
+          //             mainAxisSize: MainAxisSize.min,
+          //             children: [
+          //               Icon(Icons.science_rounded,
+          //                   size: 13, color: AppColors.info600),
+          //               SizedBox(width: 5),
+          //               Text(
+          //                 'MODO SIMULACIÓN',
+          //                 style: TextStyle(
+          //                   color: AppColors.info600,
+          //                   fontSize: 11,
+          //                   fontWeight: FontWeight.w700,
+          //                   letterSpacing: 0.8,
+          //                 ),
+          //               ),
+          //             ],
+          //           ),
+          //         ),
+          //       ],
+          //     ),
+          //   ),
 
           // ── Estado / clasificación actual ───────────────────────────────
           _ClassificationBadge(state: state, isStreaming: isStreaming),
@@ -790,7 +1135,9 @@ class _BottomPanel extends StatelessWidget {
                 label: Text(
                   isEvaluating
                       ? 'Evaluando…'
-                      : 'EVALUAR EJERCICIO (GRU)',
+                      : isSimulation
+                          ? 'EVALUAR EJERCICIO'
+                          : 'EVALUAR EJERCICIO (GRU)',
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w700),
                 ),

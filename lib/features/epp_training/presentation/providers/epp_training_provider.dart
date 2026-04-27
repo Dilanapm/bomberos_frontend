@@ -133,6 +133,54 @@ class EppTrainingNotifier extends Notifier<EppTrainingState> {
     state = const EppTrainingState();
   }
 
+  /// Actualiza solo la visualización (paso actual + barra de confianza)
+  /// sin completar el paso ni agregar al historial.
+  /// Usado para simular la variabilidad de la red neuronal entre detecciones.
+  void simulateVariability(int stepId, double confidence) {
+    final step         = EppStep.fromId(stepId);
+    final fakeResponse = EppClassificationResponse(
+      pasoId:         stepId,
+      pasoNombre:     step.displayName,
+      confianza:      confidence,
+      probabilidades: const {},
+      latenciaMs:     0,
+      poseDetectada:  stepId >= 0,
+    );
+    // Solo actualiza lo visual; completedStepIds e history no cambian.
+    state = state.copyWith(
+      lastClassification: fakeResponse,
+      currentStep:        step,
+    );
+  }
+
+  /// Inyecta una clasificación simulada sin pasar por el WebSocket.
+  /// Usado en modo de simulación por nombre de video (video_N.mp4).
+  void simulateStep(int stepId) {
+    final step         = EppStep.fromId(stepId);
+    final newCompleted = Set<int>.from(state.completedStepIds);
+
+    final fakeResponse = EppClassificationResponse(
+      pasoId:         stepId,
+      pasoNombre:     step.displayName,
+      confianza:      0.95,
+      probabilidades: const {},
+      latenciaMs:     0,
+      poseDetectada:  true,
+    );
+
+    if (stepId >= 0) {
+      newCompleted.add(stepId);
+    }
+
+    state = state.copyWith(
+      lastClassification: fakeResponse,
+      currentStep:        step,
+      completedStepIds:   newCompleted,
+      history:            [...state.history, fakeResponse],
+      // error queda en null (comportamiento de copyWith sin pasar error)
+    );
+  }
+
   // ── Privado ─────────────────────────────────────────────────────────────────
 
   void _onClassification(EppClassificationResponse r) {
