@@ -64,5 +64,8 @@ CLAUDE.md
 comments_instru.md
 errors.md
 
+# Simulación local EPP (no subir al remoto)
+lib/features/epp_training/data/models/simulation_config.dart
+
 # Config local de herramientas (no subir al remoto)
 .claude/

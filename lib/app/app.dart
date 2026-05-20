@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/presentation/providers/auth_notifier.dart';
+import '../features/notifications/presentation/providers/realtime_notifications_provider.dart';
 import 'routes/app_router.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_notifier.dart';
@@ -19,6 +20,9 @@ class _BomberosAppState extends ConsumerState<BomberosApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Activar el controlador de Reverb durante toda la sesión de la app.
+    // Se conecta/desconecta según el estado de autenticación.
+    ref.read(realtimeNotificationsProvider);
   }
 
   @override

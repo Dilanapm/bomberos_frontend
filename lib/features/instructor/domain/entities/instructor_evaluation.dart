@@ -8,6 +8,8 @@ class InstructorEvaluation {
     required this.createdAt,
     this.aprendizAvatar,
     this.commentsCount = 0,
+    this.reviewed = false,
+    this.scoreFinal,
   });
 
   final int id;
@@ -18,4 +20,12 @@ class InstructorEvaluation {
   final String status;
   final DateTime createdAt;
   final int commentsCount;
+
+  /// true si el instructor ya revisó y corrigió esta evaluación.
+  final bool reviewed;
+
+  /// Puntaje efectivo (instructor_final_score si existe, sino general_score).
+  final double? scoreFinal;
+
+  double get displayScore => scoreFinal ?? generalScore;
 }

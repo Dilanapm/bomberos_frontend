@@ -20,12 +20,14 @@ import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/auth/presentation/providers/auth_notifier.dart';
 import '../../features/auth/presentation/providers/router_notifier.dart';
 import '../../features/instructor/presentation/pages/registration_code_page.dart';
+import '../../features/notifications/presentation/screens/notifications_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/student_stats/presentation/screens/student_stats_screen.dart';
 import '../../features/aprendiz_stats/presentation/screens/aprendiz_stats_screen.dart';
 import '../../features/aprendiz_stats/presentation/screens/eval_detail_screen.dart';
 import '../../features/instructor/presentation/screens/instructor_evaluations_screen.dart';
 import '../../features/instructor/presentation/screens/instructor_eval_detail_screen.dart';
+import '../../features/instructor/presentation/screens/instructor_review_screen.dart';
 import '../../features/instructor/presentation/screens/instructor_student_evals_screen.dart';
 import '../../features/profile/presentation/screens/security_screen.dart';
 import '../../features/welcome/presentation/screens/welcome_screen.dart';
@@ -117,14 +119,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (ctx, st) => const AprendizStatsScreen(),
           ),
           GoRoute(
-            path: RouteNames.aprendizEvalDetail,
-            builder: (ctx, st) {
-              final extra  = st.extra as Map<String, dynamic>?;
-              final evalId = extra?['evalId'] as int? ?? 0;
-              return EvalDetailScreen(evalId: evalId);
-            },
-          ),
-          GoRoute(
             path: RouteNames.instructorEvaluations,
             builder: (ctx, st) => const InstructorEvaluationsScreen(),
           ),
@@ -143,14 +137,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             },
           ),
           GoRoute(
-            path: RouteNames.instructorEvalDetail,
-            builder: (ctx, st) {
-              final extra  = st.extra as Map<String, dynamic>?;
-              final evalId = extra?['evalId'] as int? ?? 0;
-              return InstructorEvalDetailScreen(evalId: evalId);
-            },
-          ),
-          GoRoute(
             path: RouteNames.trainingInstructions,
             builder: (ctx, st) => const TrainingInstructionsScreen(),
           ),
@@ -163,12 +149,40 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ── Protegidas SIN navbar (pantalla completa) ─────────────────────────
       GoRoute(
+        path: RouteNames.aprendizEvalDetail,
+        builder: (ctx, st) {
+          final extra  = st.extra as Map<String, dynamic>?;
+          final evalId = extra?['evalId'] as int? ?? 0;
+          return EvalDetailScreen(evalId: evalId);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.instructorEvalDetail,
+        builder: (ctx, st) {
+          final extra  = st.extra as Map<String, dynamic>?;
+          final evalId = extra?['evalId'] as int? ?? 0;
+          return InstructorEvalDetailScreen(evalId: evalId);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.instructorEvalReview,
+        builder: (ctx, st) {
+          final extra  = st.extra as Map<String, dynamic>?;
+          final evalId = extra?['evalId'] as int? ?? 0;
+          return InstructorReviewScreen(evalId: evalId);
+        },
+      ),
+      GoRoute(
         path: RouteNames.registrationCode,
         builder: (ctx, st) => const RegistrationCodePage(),
       ),
       GoRoute(
         path: RouteNames.security,
         builder: (ctx, st) => const SecurityScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.notifications,
+        builder: (ctx, st) => const NotificationsScreen(),
       ),
       GoRoute(
         path: RouteNames.aiModule,

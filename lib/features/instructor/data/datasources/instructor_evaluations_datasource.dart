@@ -6,6 +6,8 @@ import '../../../../core/error/app_exception.dart';
 import '../../../../core/error/error_handler.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../aprendiz_stats/data/models/evaluation_detail_model.dart';
+import '../../domain/entities/instructor_review.dart';
 import '../models/instructor_comment_model.dart';
 import '../models/instructor_evaluation_model.dart';
 
@@ -75,6 +77,35 @@ class InstructorEvaluationsDataSource {
   Future<void> deleteComment({required int evalId, required int commentId}) async {
     try {
       await _dio.delete(ApiEndpoints.instructorDeleteComment(evalId, commentId));
+    } on DioException catch (e) {
+      throw _unwrap(e);
+    }
+  }
+
+  /// GET /instructor/evaluations/{id} — detalle completo de una evaluación.
+  Future<EvaluationDetailModel> fetchEvalDetail(int evalId) async {
+    try {
+      final res  = await _dio.get(ApiEndpoints.instructorEvalDetail(evalId));
+      final data = (res.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      return EvaluationDetailModel.fromJson(data);
+    } on DioException catch (e) {
+      throw _unwrap(e);
+    } catch (e, st) {
+      debugPrint('[EvalDetail] parse error: $e\n$st');
+      throw UnknownException('Error al procesar detalle: $e');
+    }
+  }
+
+  /// PATCH /instructor/evaluations/{id}/review — envía revisión del instructor.
+  Future<void> reviewEvaluation({
+    required int evalId,
+    required InstructorReviewPayload payload,
+  }) async {
+    try {
+      await _dio.patch(
+        ApiEndpoints.instructorEvalReview(evalId),
+        data: payload.toJson(),
+      );
     } on DioException catch (e) {
       throw _unwrap(e);
     }

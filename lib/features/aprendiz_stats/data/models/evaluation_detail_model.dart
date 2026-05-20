@@ -27,22 +27,42 @@ class EvalStepModel extends EvalStep {
     super.peakTime,
     super.peakConfidence,
     super.detectionType,
+    super.instructorStatus,
+    super.instructorScore,
+    super.instructorNote,
+    required super.effectiveStatus,
+    required super.effectiveScore,
   });
 
   factory EvalStepModel.fromJson(Map<String, dynamic> json) {
+    final score           = _toDouble(json['score']);
+    final status          = json['status'] as String? ?? 'incorrecto';
+    final instructorScore = _toDoubleOrNull(json['instructor_score']);
+    final instructorStatus = json['instructor_status'] as String?;
+
     return EvalStepModel(
-      stepNumber:     _toInt(json['step_number']),
-      stepName:        json['step_name']       as String,
-      score:          _toDouble(json['score']),
-      status:          json['status']          as String,
-      detected:        json['detected']        as bool? ?? false,
-      feedback:        json['feedback']        as String?,
-      timeStart:      _toDoubleOrNull(json['time_start']),
-      timeEnd:        _toDoubleOrNull(json['time_end']),
-      duration:       _toDoubleOrNull(json['duration']),
-      peakTime:       _toDoubleOrNull(json['peak_time']),
-      peakConfidence: _toDoubleOrNull(json['peak_confidence']),
-      detectionType:   json['detection_type']  as String?,
+      stepNumber:      _toInt(json['step_number']),
+      stepName:         json['step_name']        as String,
+      score:            score,
+      status:           status,
+      detected:         json['detected']         as bool? ?? false,
+      feedback:         json['feedback']         as String?,
+      timeStart:       _toDoubleOrNull(json['time_start']),
+      timeEnd:         _toDoubleOrNull(json['time_end']),
+      duration:        _toDoubleOrNull(json['duration']),
+      peakTime:        _toDoubleOrNull(json['peak_time']),
+      peakConfidence:  _toDoubleOrNull(json['peak_confidence']),
+      detectionType:    json['detection_type']   as String?,
+      instructorStatus: instructorStatus,
+      instructorScore:  instructorScore,
+      instructorNote:   json['instructor_note']  as String?,
+      // Usar el valor efectivo que envía el backend; si no viene, calcularlo.
+      effectiveStatus: json['effective_status']  as String?
+                           ?? instructorStatus
+                           ?? status,
+      effectiveScore:  _toDoubleOrNull(json['effective_score'])
+                           ?? instructorScore
+                           ?? score,
     );
   }
 }
@@ -98,17 +118,28 @@ class EvaluationDetailModel extends EvaluationDetail {
     required super.steps,
     required super.errors,
     required super.comments,
+    required super.scoreFinal,
+    super.reviewed,
+    super.instructorFinalScore,
+    super.instructorReviewedAt,
   });
 
   factory EvaluationDetailModel.fromJson(Map<String, dynamic> json) {
+    final generalScore = _toDouble(json['general_score']);
     return EvaluationDetailModel(
-      id:             _toInt(json['id']),
-      generalScore:   _toDouble(json['general_score']),
-      status:          json['status']          as String,
-      durationSeconds: _toDouble(json['duration_seconds']),
-      detectionRate:   _toDouble(json['detection_rate']),
-      correctOrder:    json['correct_order']   as bool? ?? false,
-      recommendations: json['recommendations'] as String?,
+      id:                   _toInt(json['id']),
+      generalScore:         generalScore,
+      status:                json['status']          as String,
+      durationSeconds:      _toDouble(json['duration_seconds']),
+      detectionRate:        _toDouble(json['detection_rate']),
+      correctOrder:          json['correct_order']   as bool? ?? false,
+      recommendations:       json['recommendations'] as String?,
+      scoreFinal:           _toDoubleOrNull(json['score_final']) ?? generalScore,
+      reviewed:              json['reviewed']        as bool? ?? false,
+      instructorFinalScore: _toDoubleOrNull(json['instructor_final_score']),
+      instructorReviewedAt: json['instructor_reviewed_at'] != null
+          ? DateTime.tryParse(json['instructor_reviewed_at'] as String)
+          : null,
       steps: ((json['steps'] as List<dynamic>?) ?? [])
           .cast<Map<String, dynamic>>()
           .map(EvalStepModel.fromJson)

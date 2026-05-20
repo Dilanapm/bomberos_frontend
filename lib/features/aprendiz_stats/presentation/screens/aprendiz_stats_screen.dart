@@ -820,26 +820,89 @@ class _ProgressChart extends StatelessWidget {
             const SizedBox(height: 16),
             SizedBox(
               height: 100,
-              child: _SimpleLineChart(
-                  points: points,
-                  maxY: effectiveMax,
-                  isDark: isDark),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ── Eje Y ─────────────────────────────────────────────────
+                  SizedBox(
+                    width: 36,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${effectiveMax.toStringAsFixed(0)}%',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                fontSize: 10,
+                                color: isDark
+                                    ? AppColors.secondary500
+                                    : AppColors.secondary400,
+                              ),
+                        ),
+                        Text(
+                          '${(effectiveMax / 2).toStringAsFixed(0)}%',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                fontSize: 10,
+                                color: isDark
+                                    ? AppColors.secondary500
+                                    : AppColors.secondary400,
+                              ),
+                        ),
+                        Text(
+                          '0%',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                fontSize: 10,
+                                color: isDark
+                                    ? AppColors.secondary500
+                                    : AppColors.secondary400,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // ── Gráfico ───────────────────────────────────────────────
+                  Expanded(
+                    child: _SimpleLineChart(
+                      points: points,
+                      maxY: effectiveMax,
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 8),
+            // ── Eje X: margen izquierdo equivalente al ancho del eje Y ──────
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: points
-                  .asMap()
-                  .entries
-                  .map((e) => Text(
-                        '${e.key + 1}',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: isDark
-                                  ? AppColors.secondary500
-                                  : AppColors.secondary400,
-                            ),
-                      ))
-                  .toList(),
+              children: [
+                const SizedBox(width: 42), // alinea con el inicio del gráfico
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: points
+                        .asMap()
+                        .entries
+                        .map((e) => Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  '${e.key + 1}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(
+                                        color: isDark
+                                            ? AppColors.secondary500
+                                            : AppColors.secondary400,
+                                      ),
+                                ),
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -983,11 +1046,6 @@ class _AnalyticsTab extends ConsumerWidget {
                 debilidades: analytics.debilidades,
                 isDark: isDark,
               ),
-              if (analytics.progresoTemporal.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _ProgressTemporalCard(
-                    points: analytics.progresoTemporal, isDark: isDark),
-              ],
               const SizedBox(height: 24),
             ],
           ),
@@ -1051,27 +1109,38 @@ class _PersonalStatsCard extends StatelessWidget {
           children: [
             _SectionLabel(text: 'Mis estadísticas', isDark: isDark),
             const SizedBox(height: 16),
-            Row(
+            Column(
               children: [
-                _BigStat(
-                  label: 'Promedio',
-                  value: '${stats.promedio.toStringAsFixed(1)}%',
-                  color: _scoreColor(stats.promedio),
-                  isDark: isDark,
+                Row(
+                  children: [
+                    _BigStat(
+                      label: 'Promedio',
+                      value: '${stats.promedio.toStringAsFixed(1)}%',
+                      color: _scoreColor(stats.promedio),
+                      isDark: isDark,
+                    ),
+                    const SizedBox(width: 16),
+                    _BigStat(
+                      label: 'Mejor',
+                      value: '${stats.mejorPuntaje.toStringAsFixed(1)}%',
+                      color: AppColors.success500,
+                      isDark: isDark,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                _BigStat(
-                  label: 'Mejor',
-                  value: '${stats.mejorPuntaje.toStringAsFixed(1)}%',
-                  color: AppColors.success500,
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 16),
-                _BigStat(
-                  label: 'Intentos',
-                  value: '${stats.totalIntentos}',
-                  color: AppColors.info500,
-                  isDark: isDark,
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Spacer(),
+                    _BigStat(
+                      label: 'Intentos',
+                      value: '${stats.totalIntentos}',
+                      color: AppColors.info500,
+                      isDark: isDark,
+                      flex: 2,
+                    ),
+                    const Spacer(),
+                  ],
                 ),
               ],
             ),
@@ -1394,63 +1463,6 @@ class _WeaknessRow extends StatelessWidget {
   }
 }
 
-class _ProgressTemporalCard extends StatelessWidget {
-  const _ProgressTemporalCard({required this.points, required this.isDark});
-  final List<TemporalPoint> points;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    final cardBg = isDark ? AppColors.cardDark : AppColors.white;
-
-    return Card(
-      color: cardBg,
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SectionLabel(text: 'Progreso temporal', isDark: isDark),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 100,
-              child: CustomPaint(
-                painter: _LineChartPainter(
-                  scores: points.map((p) => p.puntaje).toList(),
-                  maxY:   100,
-                  lineColor: AppColors.info500,
-                  dotColor:  AppColors.info500,
-                  gridColor: isDark
-                      ? AppColors.secondary700
-                      : AppColors.secondary100,
-                ),
-                size: const Size(double.infinity, 100),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: points
-                  .map((p) => Text(
-                        'Int. ${p.intento}',
-                        style:
-                            Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  color: isDark
-                                      ? AppColors.secondary500
-                                      : AppColors.secondary400,
-                                ),
-                      ))
-                  .toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB 2 — Historial (A3 paginado)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1687,15 +1699,18 @@ class _BigStat extends StatelessWidget {
     required this.value,
     required this.color,
     required this.isDark,
+    this.flex = 1,
   });
   final String label;
   final String value;
   final Color color;
   final bool isDark;
+  final int flex;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
+      flex: flex,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(

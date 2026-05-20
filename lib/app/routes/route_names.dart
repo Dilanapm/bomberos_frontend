@@ -25,7 +25,9 @@ class RouteNames {
   static const instructorEvaluations    = '/instructor/evaluations';
   static const instructorStudentEvals   = '/instructor/evaluations/student';
   static const instructorEvalDetail     = '/instructor/evaluations/detail';
+  static const instructorEvalReview     = '/instructor/evaluations/review';
   static const security                 = '/profile/security';
+  static const notifications            = '/notifications';
 
   /// Rutas accesibles sin sesión (se redirige a home si ya hay sesión).
   static const publicRoutes = [welcome, login, register, forgotPassword];

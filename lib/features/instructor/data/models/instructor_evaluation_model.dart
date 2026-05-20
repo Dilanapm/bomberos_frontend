@@ -10,6 +10,8 @@ class InstructorEvaluationModel extends InstructorEvaluation {
     required super.createdAt,
     super.aprendizAvatar,
     super.commentsCount,
+    super.reviewed,
+    super.scoreFinal,
   });
 
   factory InstructorEvaluationModel.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,8 @@ class InstructorEvaluationModel extends InstructorEvaluation {
       status:           json['status'] as String? ?? '',
       createdAt:        DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
       commentsCount:    (json['comments_count'] as num?)?.toInt() ?? 0,
+      reviewed:         json['reviewed'] as bool? ?? false,
+      scoreFinal:       (json['score_final'] as num?)?.toDouble(),
     );
   }
 }

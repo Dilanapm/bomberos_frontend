@@ -7,6 +7,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_icons.dart';
 import '../../../../core/widgets/app_menu_card.dart';
 import '../../../../core/widgets/app_scroll_body.dart';
+import '../../../notifications/presentation/providers/unread_count_notifier.dart';
+import '../../../notifications/presentation/widgets/notifications_bell.dart';
 import '../providers/auth_notifier.dart';
 import '../providers/auth_state.dart';
 
@@ -119,14 +121,22 @@ class _HomeAprendizScreenState extends ConsumerState<HomeAprendizScreen> {
                       title:    'Configuración',
                       subtitle:
                           'Ajustes de la aplicación y preferencias del sistema.',
-                      onTap:    () {},
+                      onTap:    () => context.push(RouteNames.profile),
                     ),
                     const SizedBox(height: 12),
-                    AppMenuCard(
-                      icon:     AppIcons.notificationsOutlined,
-                      title:    'Avisos',
-                      subtitle: 'Sin notificaciones nuevas',
-                      onTap:    () {},
+                    Consumer(
+                      builder: (ctx, ref, _) {
+                        final unread = ref.watch(unreadCountProvider);
+                        final subtitle = unread == 0
+                            ? 'Sin notificaciones nuevas'
+                            : '$unread ${unread == 1 ? "notificación nueva" : "notificaciones nuevas"}';
+                        return AppMenuCard(
+                          icon:     AppIcons.notificationsOutlined,
+                          title:    'Avisos',
+                          subtitle: subtitle,
+                          onTap:    () => context.push(RouteNames.notifications),
+                        );
+                      },
                     ),
 
                     const SizedBox(height: 24),
@@ -193,54 +203,60 @@ class _Header extends StatelessWidget {
             ),
           ),
 
-          // Avatar with online indicator
-          Stack(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isDark
-                      ? AppColors.dark3
-                      : AppColors.secondary100,
-                  border: Border.all(
-                    color: isDark
-                        ? AppColors.dark4
-                        : AppColors.secondary200,
-                    width: 1.5,
-                  ),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: avatarUrl != null
-                    ? Image.network(
-                        avatarUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (ctx, err, st) =>
-                            _AvatarPlaceholder(isDark: isDark),
-                      )
-                    : _AvatarPlaceholder(isDark: isDark),
-              ),
-              // Online dot
-              Positioned(
-                bottom: 1,
-                right: 1,
-                child: Container(
-                  width: 11,
-                  height: 11,
+          const NotificationsBell(),
+          const SizedBox(width: 12),
+
+          // Avatar with online indicator — toca para ir a Perfil/Config
+          GestureDetector(
+            onTap: () => context.push(RouteNames.profile),
+            child: Stack(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.success700,
+                    color: isDark
+                        ? AppColors.dark3
+                        : AppColors.secondary100,
                     border: Border.all(
                       color: isDark
-                          ? AppColors.dark0
-                          : AppColors.secondary50,
-                      width: 2,
+                          ? AppColors.dark4
+                          : AppColors.secondary200,
+                      width: 1.5,
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: avatarUrl != null
+                      ? Image.network(
+                          avatarUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (ctx, err, st) =>
+                              _AvatarPlaceholder(isDark: isDark),
+                        )
+                      : _AvatarPlaceholder(isDark: isDark),
+                ),
+                // Online dot
+                Positioned(
+                  bottom: 1,
+                  right: 1,
+                  child: Container(
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.success700,
+                      border: Border.all(
+                        color: isDark
+                            ? AppColors.dark0
+                            : AppColors.secondary50,
+                        width: 2,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

@@ -39,4 +39,11 @@ class ApiEndpoints {
   static String instructorEvalComments(int id) => '/instructor/evaluations/$id/comments';
   static String instructorDeleteComment(int evalId, int commentId) =>
       '/instructor/evaluations/$evalId/comments/$commentId';
+  static String instructorEvalReview(int id) => '/instructor/evaluations/$id/review';
+
+  // ── Notificaciones (con token) ────────────────────────────────────────────
+  static const String notifications            = '/notifications';
+  static const String notificationsUnreadCount = '/notifications/unread-count';
+  static const String notificationsReadAll     = '/notifications/read-all';
+  static String notificationRead(String id)    => '/notifications/$id/read';
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../core/widgets/app_app_bar.dart';
 import '../../../../core/widgets/app_scroll_body.dart';
@@ -15,6 +17,7 @@ class InstructorEvalDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark        = Theme.of(context).brightness == Brightness.dark;
     final commentsAsync = ref.watch(commentsNotifierProvider(evalId));
+    final detailAsync   = ref.watch(instructorEvalDetailProvider(evalId));
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.dark0 : AppColors.secondary50,
@@ -27,18 +30,29 @@ class InstructorEvalDetailScreen extends ConsumerWidget {
       body: commentsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
-          child: Text('Error al cargar comentarios: $e'),
+          child: Text('Error al cargar: $e'),
         ),
         data: (state) => Column(
           children: [
-            // Lista de comentarios existentes
+            // ── Panel de revisión (badge + botón) ─────────────────────────
+            detailAsync.when(
+              loading: () => const SizedBox.shrink(),
+              error:   (e, st) => const SizedBox.shrink(),
+              data: (detail) => _ReviewBanner(
+                evalId:   evalId,
+                reviewed: detail.reviewed,
+                isDark:   isDark,
+              ),
+            ),
+
+            // ── Lista de comentarios ───────────────────────────────────────
             Expanded(
               child: state.comments.isEmpty
                   ? _EmptyComments(isDark: isDark)
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                       itemCount: state.comments.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (ctx, i) => const SizedBox(height: 10),
                       itemBuilder: (ctx, i) => _CommentTile(
                         comment:  state.comments[i],
                         isDark:   isDark,
@@ -48,7 +62,8 @@ class InstructorEvalDetailScreen extends ConsumerWidget {
                       ),
                     ),
             ),
-            // Error inline (ej. validación del backend)
+
+            // ── Error inline ───────────────────────────────────────────────
             if (state.errorMessage != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -60,14 +75,85 @@ class InstructorEvalDetailScreen extends ConsumerWidget {
                       ?.copyWith(color: AppColors.primary5),
                 ),
               ),
-            // Formulario para agregar comentario
+
+            // ── Formulario para agregar comentario ────────────────────────
             _AddCommentForm(
-              evalId:    evalId,
-              isDark:    isDark,
+              evalId:     evalId,
+              isDark:     isDark,
               submitting: state.submitting,
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Banner de estado de revisión + botón "Revisar evaluación"
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ReviewBanner extends StatelessWidget {
+  const _ReviewBanner({
+    required this.evalId,
+    required this.reviewed,
+    required this.isDark,
+  });
+
+  final int  evalId;
+  final bool reviewed;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor  = reviewed
+        ? AppColors.success500.withAlpha(isDark ? 30 : 15)
+        : AppColors.accent400.withAlpha(isDark ? 30 : 15);
+    final bdColor  = reviewed
+        ? AppColors.success500.withAlpha(80)
+        : AppColors.accent400.withAlpha(80);
+    final icon     = reviewed
+        ? Icons.verified_rounded
+        : Icons.pending_outlined;
+    final iconCol  = reviewed ? AppColors.success500 : AppColors.accent400;
+    final label    = reviewed ? 'Revisado' : 'Pendiente de revisión';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: bdColor),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: iconCol),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: iconCol,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => context.push<bool>(
+              RouteNames.instructorEvalReview,
+              extra: {'evalId': evalId},
+            ),
+            icon: const Icon(Icons.rate_review_outlined, size: 16),
+            label: Text(reviewed ? 'Editar revisión' : 'Revisar'),
+            style: TextButton.styleFrom(
+              foregroundColor: iconCol,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            ),
+          ),
+        ],
       ),
     );
   }

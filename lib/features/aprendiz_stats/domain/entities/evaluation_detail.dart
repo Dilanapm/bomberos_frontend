@@ -12,6 +12,10 @@ class EvaluationDetail {
     required this.steps,
     required this.errors,
     required this.comments,
+    required this.scoreFinal,
+    this.reviewed = false,
+    this.instructorFinalScore,
+    this.instructorReviewedAt,
   });
 
   final int id;
@@ -27,6 +31,18 @@ class EvaluationDetail {
   final List<EvalStep> steps;
   final List<EvalError> errors;
   final List<EvalComment> comments;
+
+  /// Puntaje efectivo: instructor_final_score si existe, sino general_score.
+  final double scoreFinal;
+
+  /// true si el instructor ya revisó esta evaluación.
+  final bool reviewed;
+
+  /// Puntaje final asignado por el instructor (null si no ha revisado).
+  final double? instructorFinalScore;
+
+  /// Cuándo el instructor realizó la revisión.
+  final DateTime? instructorReviewedAt;
 }
 
 class EvalStep {
@@ -43,15 +59,20 @@ class EvalStep {
     this.peakTime,
     this.peakConfidence,
     this.detectionType,
+    this.instructorStatus,
+    this.instructorScore,
+    this.instructorNote,
+    required this.effectiveStatus,
+    required this.effectiveScore,
   });
 
   final int stepNumber;
   final String stepName;
 
-  /// 0.0–1.0 → multiplicar × 100 para porcentaje
+  /// Score de la IA (0.0–1.0).
   final double score;
 
-  /// "correcto" | "incorrecto" | "no_detectado"
+  /// Estado de la IA: "correcto" | "incorrecto" | "no_detectado"
   final String status;
   final bool detected;
   final String? feedback;
@@ -62,11 +83,23 @@ class EvalStep {
   final double? duration;
 
   // Campos adicionales de FastAPI
-  final double? peakTime;        // segundo del frame con mayor confianza
-  final double? peakConfidence;  // confianza máxima (0..1)
-  final String? detectionType;   // "instant" | "segment" | null
+  final double? peakTime;
+  final double? peakConfidence;
+  final String? detectionType;
 
-  double get scorePercent => score * 100;
+  // Revisión del instructor
+  final String? instructorStatus;   // "correcto" | "incorrecto" | null
+  final double? instructorScore;    // 0.0–1.0 | null
+  final String? instructorNote;     // nota del instructor | null
+
+  /// Estado efectivo: instructor_status si existe, sino el de la IA.
+  final String effectiveStatus;
+
+  /// Score efectivo (0.0–1.0): instructor_score si existe, sino el de la IA.
+  final double effectiveScore;
+
+  double get scorePercent          => score * 100;
+  double get effectiveScorePercent => effectiveScore * 100;
 }
 
 class EvalError {

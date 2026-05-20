@@ -100,59 +100,65 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         centerTitle: true,
       ),
 
-      body: LayoutBuilder(
-        builder: (ctx, constraints) {
-          final compact = constraints.maxHeight <= 620;
-          final ultraCompact = constraints.maxHeight <= 600;
-          final vPad = ultraCompact ? 12.0 : (compact ? 16.0 : 20.0);
-          final gapS = ultraCompact ? 8.0 : (compact ? 12.0 : 16.0);
-          final gapM = ultraCompact ? 12.0 : (compact ? 20.0 : 28.0);
-          final gapFooter = ultraCompact ? 8.0 : (compact ? 16.0 : 24.0);
+      body: Builder(
+        builder: (ctx) {
+          // Usar size.height (altura total del dispositivo) en lugar de las
+          // constraints del body — así los breakpoints no cambian cuando el
+          // teclado aparece y reduce el espacio disponible.
+          final screenH      = MediaQuery.of(ctx).size.height;
+          final compact      = screenH <= 700;
+          final ultraCompact = screenH <= 680;
+          final vPad         = ultraCompact ? 12.0 : (compact ? 16.0 : 20.0);
+          final gapS         = ultraCompact ? 8.0  : (compact ? 12.0 : 16.0);
+          final gapFooter    = ultraCompact ? 8.0  : (compact ? 16.0 : 24.0);
 
-          final content = Padding(
+          return SingleChildScrollView(
+            // keyboardDismissBehavior: toca fuera del teclado para cerrarlo
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: vPad),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
 
-                // ── Card: Avatar + nombre + rol ─────────────────────────────
+                // ── Card: Avatar + nombre + rol ───────────────────────────
                 AppCard(
                   child: _editingName
                       ? _EditProfileForm(
-                          nameCtrl: _nameCtrl,
+                          nameCtrl:     _nameCtrl,
                           usernameCtrl: _usernameCtrl,
-                          errors: _profileErrors,
-                          isSaving: isSaving,
-                          onSave: _saveProfile,
-                          onCancel: () =>
+                          errors:       _profileErrors,
+                          isSaving:     isSaving,
+                          onSave:       _saveProfile,
+                          onCancel:     () =>
                               setState(() => _editingName = false),
-                          onChanged: (k) =>
+                          onChanged:    (k) =>
                               setState(() => _profileErrors.remove(k)),
-                          compact: compact,
+                          compact:      compact,
                           ultraCompact: ultraCompact,
                         )
                       : _ProfileHeader(
-                          user: user,
-                          isDark: isDark,
-                          onEdit: () =>
+                          user:         user,
+                          isDark:       isDark,
+                          onEdit:       () =>
                               _startEdit(user.name, user.username),
-                          compact: compact,
+                          compact:      compact,
                           ultraCompact: ultraCompact,
                         ),
                 ),
 
                 SizedBox(height: gapS),
 
-                // ── Card: Configuración ─────────────────────────────────────
+                // ── Card: Configuración ───────────────────────────────────
                 AppCard(
                   child: Column(
                     children: [
                       AppToggleTile(
                         icon: AppIcons.darkMode,
-                        iconColor:
-                            isDark ? AppColors.info400 : AppColors.secondary400,
-                        label: 'Modo Oscuro',
-                        value: isDark,
+                        iconColor: isDark
+                            ? AppColors.info400
+                            : AppColors.secondary400,
+                        label:    'Modo Oscuro',
+                        value:    isDark,
                         onChanged: (_) => ref
                             .read(themeModeProvider.notifier)
                             .toggle(Theme.of(context).brightness),
@@ -160,22 +166,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       Divider(height: 1, color: divColor),
                       AppToggleTile(
-                        icon: AppIcons.notifications,
+                        icon:      AppIcons.notifications,
                         iconColor: AppColors.primary5,
-                        label: 'Notificaciones',
-                        value: _notificationsOn,
+                        label:     'Notificaciones',
+                        value:     _notificationsOn,
                         onChanged: (v) =>
                             setState(() => _notificationsOn = v),
                         dense: compact,
                       ),
                       Divider(height: 1, color: divColor),
                       AppChevronTile(
-                        icon: AppIcons.security,
+                        icon:      AppIcons.security,
                         iconColor: AppColors.success600,
-                        label: 'Seguridad',
-                        subtitle: 'Contraseña y acceso biométrico',
-                        onTap: () => context.push(RouteNames.security),
-                        dense: compact,
+                        label:     'Seguridad',
+                        subtitle:  'Contraseña y acceso biométrico',
+                        onTap:     () => context.push(RouteNames.security),
+                        dense:     compact,
                       ),
                     ],
                   ),
@@ -183,36 +189,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                 SizedBox(height: gapS),
 
-                // ── Card: Ayuda ─────────────────────────────────────────────
-                // AppCard(
-                //   child: AppChevronTile(
-                //     icon: AppIcons.help,
-                //     iconColor:
-                //         isDark ? AppColors.secondary300 : AppColors.secondary400,
-                //     label: 'Ayuda y Soporte',
-                //     onTap: () {}, // TODO: navegar a pantalla de ayuda
-                //     dense: compact,
-                //   ),
-                // ),
-
-                // SizedBox(height: compact ? gapS : gapM),
-
-                // ── Botón cerrar sesión ─────────────────────────────────────
+                // ── Botón cerrar sesión ───────────────────────────────────
                 _LogoutButton(
                   isDark: isDark,
-                  onTap: _logout,
-                  dense: ultraCompact,
+                  onTap:  _logout,
+                  dense:  ultraCompact,
                 ),
 
                 SizedBox(height: gapS),
 
-                // ── Footer versión ──────────────────────────────────────────
+                // ── Footer versión ────────────────────────────────────────
                 Text(
                   'Bomberos TG App - Versión 1.0.0',
                   textAlign: TextAlign.center,
                   style: textTheme.labelSmall?.copyWith(
-                    color:
-                        isDark ? AppColors.secondary500 : AppColors.secondary400,
+                    color: isDark
+                        ? AppColors.secondary500
+                        : AppColors.secondary400,
                     fontWeight: FontWeight.w400,
                   ),
                 ),
@@ -221,8 +214,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ),
           );
-
-          return content;
         },
       ),
     );

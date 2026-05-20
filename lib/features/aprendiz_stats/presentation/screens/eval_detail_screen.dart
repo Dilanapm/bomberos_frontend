@@ -23,6 +23,15 @@ class EvalDetailScreen extends ConsumerWidget {
   const EvalDetailScreen({super.key, required this.evalId});
   final int evalId;
 
+  Future<void> _refresh(WidgetRef ref) async {
+    ref.invalidate(evalDetailProvider(evalId));
+    try {
+      await ref.read(evalDetailProvider(evalId).future);
+    } catch (_) {
+      // El error se muestra en el when(.error)
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detailAsync = ref.watch(evalDetailProvider(evalId));
@@ -35,6 +44,13 @@ class EvalDetailScreen extends ConsumerWidget {
         backgroundColor: isDark ? AppColors.dark1 : AppColors.primary5,
         foregroundColor: AppColors.white,
         showDivider: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Actualizar',
+            onPressed: () => _refresh(ref),
+          ),
+        ],
       ),
       body: detailAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -62,8 +78,17 @@ class EvalDetailScreen extends ConsumerWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                   FilledButton.icon(
+                    onPressed: () => _refresh(ref),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Reintentar'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.arrow_back_rounded),
                     label: const Text('Volver al historial'),
@@ -73,7 +98,11 @@ class EvalDetailScreen extends ConsumerWidget {
             ),
           );
         },
-        data: (detail) => _DetailBody(detail: detail, isDark: isDark),
+        data: (detail) => RefreshIndicator(
+          onRefresh: () => _refresh(ref),
+          color: AppColors.primary5,
+          child: _DetailBody(detail: detail, isDark: isDark),
+        ),
       ),
     );
   }
@@ -88,9 +117,9 @@ class _DetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Contar pasos clave (correctos + irregulares)
+    // Contar pasos clave usando el puntaje efectivo (instructor override si existe)
     final keySteps = detail.steps
-        .where((s) => s.scorePercent >= 50) // >= 50% son clave
+        .where((s) => s.effectiveScorePercent >= 50)
         .toList();
     final keyStepCount = keySteps.length;
 
@@ -176,9 +205,11 @@ class _OverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final col = _scoreColor(detail.generalScore);
-    final label = _scoreLabel(detail.generalScore);
-    
+    // Usar scoreFinal (instructor_final_score si revisó, general_score si no)
+    final displayScore = detail.scoreFinal;
+    final col   = _scoreColor(displayScore);
+    final label = _scoreLabel(displayScore);
+
     // Formatear duración: convertir segundos a mm:ss
     final mins = (detail.durationSeconds / 60).floor();
     final secs = (detail.durationSeconds % 60).floor();
@@ -205,9 +236,42 @@ class _OverviewCard extends StatelessWidget {
             ),
           ),
         ),
+
+        // Badge "Revisado por instructor" si aplica
+        if (detail.reviewed) ...[
+          const SizedBox(height: 10),
+          Center(
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.info500.withAlpha(isDark ? 40 : 20),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                    color: AppColors.info500.withAlpha(120)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.verified_outlined,
+                      size: 14, color: AppColors.info500),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Revisado por instructor',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: AppColors.info500,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
         const SizedBox(height: 20),
 
-        // Circular gauge con porcentaje
+        // Circular gauge con porcentaje (usa scoreFinal)
         Center(
           child: SizedBox(
             height: 220,
@@ -215,10 +279,9 @@ class _OverviewCard extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Circulo de fondo
                 CustomPaint(
                   painter: _CircularProgressPainter(
-                    progress: (detail.generalScore / 100).clamp(0.0, 1.0),
+                    progress: (displayScore / 100).clamp(0.0, 1.0),
                     color: col,
                     backgroundColor:
                         isDark ? AppColors.secondary600 : AppColors.secondary100,
@@ -226,18 +289,31 @@ class _OverviewCard extends StatelessWidget {
                   ),
                   size: const Size(220, 220),
                 ),
-                // Porcentaje en el centro
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      '${detail.generalScore.toStringAsFixed(0)}%',
+                      '${displayScore.toStringAsFixed(0)}%',
                       style: Theme.of(context).textTheme.displaySmall?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: col,
                             fontSize: 56,
                           ),
                     ),
+                    // Mostrar puntaje original de la IA si el instructor lo cambió
+                    if (detail.reviewed &&
+                        detail.instructorFinalScore != null &&
+                        (detail.instructorFinalScore! - detail.generalScore)
+                                .abs() >
+                            0.5)
+                      Text(
+                        'IA: ${detail.generalScore.toStringAsFixed(0)}%',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: isDark
+                                  ? AppColors.secondary400
+                                  : AppColors.secondary500,
+                            ),
+                      ),
                   ],
                 ),
               ],
@@ -404,7 +480,8 @@ class _StepCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pct      = step.scorePercent;
+    // Usar puntaje efectivo (instructor override si existe, IA si no)
+    final pct      = step.effectiveScorePercent;
     final col      = _scoreColor(pct);
     final icon     = pct >= 75
         ? Icons.check_circle_rounded
@@ -413,6 +490,7 @@ class _StepCard extends StatelessWidget {
             : Icons.cancel_rounded;
     final durationLabel = _durationLabel();
     final subColor      = isDark ? AppColors.secondary400 : AppColors.secondary500;
+    final hasInstructorOverride = step.instructorStatus != null;
 
     return Card(
       color:     isDark ? AppColors.cardDark : AppColors.white,
@@ -450,6 +528,45 @@ class _StepCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
+                  // Nota del instructor (si existe)
+                  if (step.instructorNote != null &&
+                      step.instructorNote!.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.verified_outlined,
+                            size: 13, color: AppColors.info500),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            step.instructorNote!,
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: AppColors.info500,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  // Indicador de corrección si el instructor cambió el veredicto
+                  if (hasInstructorOverride &&
+                      step.instructorStatus != step.status) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'IA: ${step.status}  →  Instructor: ${step.instructorStatus}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: subColor,
+                            fontSize: 10,
+                          ),
+                    ),
+                  ],
                 ],
               ),
             ),

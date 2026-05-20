@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../aprendiz_stats/domain/entities/evaluation_detail.dart';
 import '../../data/datasources/instructor_evaluations_datasource.dart';
 import '../../domain/entities/instructor_comment.dart';
 import '../../domain/entities/instructor_evaluation.dart';
+import '../../domain/entities/instructor_review.dart';
 
 // ── Resumen de un aprendiz derivado de sus evaluaciones ──────────────────────
 
@@ -220,3 +222,68 @@ class CommentsNotifier extends AsyncNotifier<CommentsState> {
 final commentsNotifierProvider =
     AsyncNotifierProvider.family<CommentsNotifier, CommentsState, int>(
         CommentsNotifier.new);
+
+// ── Detalle de una evaluación (instructor) ─────────────────────────────────────
+
+final instructorEvalDetailProvider =
+    FutureProvider.family<EvaluationDetail, int>((ref, evalId) {
+  return ref
+      .read(instructorEvaluationsDSProvider)
+      .fetchEvalDetail(evalId);
+});
+
+// ── Notifier para enviar la revisión del instructor ───────────────────────────
+
+class InstructorReviewState {
+  const InstructorReviewState({
+    this.submitting = false,
+    this.submitted  = false,
+    this.errorMessage,
+  });
+
+  final bool   submitting;
+  final bool   submitted;
+  final String? errorMessage;
+
+  InstructorReviewState copyWith({
+    bool?   submitting,
+    bool?   submitted,
+    String? errorMessage,
+  }) =>
+      InstructorReviewState(
+        submitting:   submitting   ?? this.submitting,
+        submitted:    submitted    ?? this.submitted,
+        errorMessage: errorMessage,
+      );
+}
+
+class InstructorReviewNotifier extends Notifier<InstructorReviewState> {
+  @override
+  InstructorReviewState build() => const InstructorReviewState();
+
+  Future<bool> submit({
+    required int evalId,
+    required InstructorReviewPayload payload,
+  }) async {
+    state = state.copyWith(submitting: true);
+    try {
+      await ref
+          .read(instructorEvaluationsDSProvider)
+          .reviewEvaluation(evalId: evalId, payload: payload);
+      // Invalida el caché del detalle para forzar recarga
+      ref.invalidate(instructorEvalDetailProvider(evalId));
+      state = state.copyWith(submitting: false, submitted: true);
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        submitting:   false,
+        errorMessage: e.toString(),
+      );
+      return false;
+    }
+  }
+}
+
+final instructorReviewNotifierProvider =
+    NotifierProvider<InstructorReviewNotifier, InstructorReviewState>(
+        InstructorReviewNotifier.new);

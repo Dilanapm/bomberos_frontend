@@ -7,6 +7,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_icons.dart';
 import '../../../../core/widgets/app_menu_card.dart';
 import '../../../../core/widgets/app_scroll_body.dart';
+import '../../../notifications/presentation/widgets/notifications_bell.dart';
 import '../providers/auth_notifier.dart';
 import '../providers/auth_state.dart';
 
@@ -199,6 +200,9 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+
+          const NotificationsBell(),
+          const SizedBox(width: 12),
 
           // ── Avatar con indicador online ───────────────────────────────────
           Stack(
